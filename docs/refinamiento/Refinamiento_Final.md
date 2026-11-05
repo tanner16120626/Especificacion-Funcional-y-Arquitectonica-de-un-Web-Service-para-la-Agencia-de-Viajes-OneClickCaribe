@@ -24,21 +24,21 @@ La pasarela de pagos es un sistema externo: notifica el resultado de las transac
 | HU-002 | Iniciar sesión en el portal | Cliente | POST | /api/v1/auth/login | MOD-01 | Pública | Alta | Sprint 1 |
 | HU-003 | Consultar mi perfil | Cliente | GET | /api/v1/clientes/me | MOD-01 | Token, rol cliente | Media | Sprint 1 |
 | HU-004 | Actualizar mis datos de contacto | Cliente | PATCH | /api/v1/clientes/me | MOD-01 | Token, rol cliente | Baja | Sprint 1 |
-| HU-005 | Registrar un proveedor con su comisión pactada | Administradora | POST | /api/v1/proveedores | MOD-02 | Token, rol administradora | Media | Sprint 2 |
-| HU-006 | Desactivar o reactivar un proveedor | Administradora | PATCH | /api/v1/proveedores/{proveedorId}/estado | MOD-02 | Token, rol administradora | Media | Sprint 2 |
-| HU-007 | Consultar servicios disponibles por destino | Cliente | GET | /api/v1/catalogo/servicios | MOD-02 | Pública | Media | Sprint 2 |
-| HU-008 | Solicitar cotización y recibirla automáticamente | Cliente | POST | /api/v1/cotizaciones | MOD-03 | Token, rol cliente | Alta | Sprint 2 |
-| HU-009 | Consultar mi cotización | Cliente | GET | /api/v1/cotizaciones/{cotizacionId} | MOD-03 | Token, rol cliente | Media | Sprint 2 |
-| HU-010 | Responder a mi cotización | Cliente | POST | /api/v1/cotizaciones/{cotizacionId}/respuesta | MOD-03 | Token, rol cliente | Alta | Sprint 2 |
-| HU-011 | Confirmar mi compra y generar la orden de venta | Cliente | POST | /api/v1/ventas | MOD-04 | Token, rol cliente | Alta | Sprint 3 |
-| HU-012 | Consultar el estado de mi compra | Cliente | GET | /api/v1/ventas/{ventaId} | MOD-04 | Token, rol cliente | Media | Sprint 3 |
-| HU-013 | Pagar mi compra en línea | Cliente | POST | /api/v1/pagos | MOD-05 | Token, rol cliente | Alta | Sprint 3 |
-| HU-014 | Confirmar automáticamente mi pago por PSE | Cliente | POST | /api/v1/pagos/notificaciones | MOD-05 | Firma de la pasarela | Alta | Sprint 3 |
-| HU-015 | Consultar mis pagos y mi saldo | Cliente | GET | /api/v1/ventas/{ventaId}/pagos | MOD-05 | Token, rol cliente | Media | Sprint 3 |
-| HU-016 | Consultar mi reserva confirmada | Cliente | GET | /api/v1/ventas/{ventaId}/reserva | MOD-07 | Token, rol cliente | Media | Sprint 4 |
-| HU-017 | Consultar mi factura | Cliente | GET | /api/v1/ventas/{ventaId}/factura | MOD-06 | Token, rol cliente | Media | Sprint 4 |
-| HU-018 | Registrar una consulta posventa | Cliente | POST | /api/v1/posventa/consultas | MOD-08 | Token, rol cliente | Media | Sprint 4 |
-| HU-019 | Responder y cerrar una consulta posventa | Asesor comercial | PATCH | /api/v1/posventa/consultas/{consultaId} | MOD-08 | Token, rol asesor | Media | Sprint 4 |
+| HU-005 | Registrar un proveedor con su comisión pactada | Administradora | POST | /api/v1/proveedores | MOD-02 | Token, rol administradora | Media | Sprint 1 |
+| HU-006 | Desactivar o reactivar un proveedor | Administradora | PATCH | /api/v1/proveedores/{proveedorId}/estado | MOD-02 | Token, rol administradora | Media | Sprint 1 |
+| HU-007 | Consultar servicios disponibles por destino | Cliente | GET | /api/v1/catalogo/servicios | MOD-02 | Pública | Media | Sprint 1 |
+| HU-008 | Solicitar cotización y recibirla automáticamente | Cliente | POST | /api/v1/cotizaciones | MOD-03 | Token, rol cliente | Alta | Sprint 1 |
+| HU-009 | Consultar mi cotización | Cliente | GET | /api/v1/cotizaciones/{cotizacionId} | MOD-03 | Token, rol cliente | Media | Sprint 1 |
+| HU-010 | Responder a mi cotización | Cliente | POST | /api/v1/cotizaciones/{cotizacionId}/respuesta | MOD-03 | Token, rol cliente | Alta | Sprint 1 |
+| HU-011 | Confirmar mi compra y generar la orden de venta | Cliente | POST | /api/v1/ventas | MOD-04 | Token, rol cliente | Alta | Sprint 1 |
+| HU-012 | Consultar el estado de mi compra | Cliente | GET | /api/v1/ventas/{ventaId} | MOD-04 | Token, rol cliente | Media | Sprint 1 |
+| HU-013 | Pagar mi compra en línea | Cliente | POST | /api/v1/pagos | MOD-05 | Token, rol cliente | Alta | Sprint 1 |
+| HU-014 | Confirmar automáticamente mi pago por PSE | Cliente | POST | /api/v1/pagos/notificaciones | MOD-05 | Firma de la pasarela | Alta | Sprint 1 |
+| HU-015 | Consultar mis pagos y mi saldo | Cliente | GET | /api/v1/ventas/{ventaId}/pagos | MOD-05 | Token, rol cliente | Media | Sprint 1 |
+| HU-016 | Consultar mi reserva confirmada | Cliente | GET | /api/v1/ventas/{ventaId}/reserva | MOD-07 | Token, rol cliente | Media | Sprint 1 |
+| HU-017 | Consultar mi factura | Cliente | GET | /api/v1/ventas/{ventaId}/factura | MOD-06 | Token, rol cliente | Media | Sprint 1 |
+| HU-018 | Registrar una consulta posventa | Cliente | POST | /api/v1/posventa/consultas | MOD-08 | Token, rol cliente | Media | Sprint 1 |
+| HU-019 | Responder y cerrar una consulta posventa | Asesor comercial | PATCH | /api/v1/posventa/consultas/{consultaId} | MOD-08 | Token, rol asesor | Media | Sprint 1 |
 
 ## 4. Criterios transversales
 
