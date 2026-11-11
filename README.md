@@ -17,7 +17,7 @@ Centralizar la información operativa de One Click Caribe, automatizar el cálcu
 | Elemento | Representación en GitHub |
 |---|---|
 | Épica (módulo MOD-01 a MOD-08) | Etiqueta `MOD-XX` |
-| Historia de usuario (HU-001 a HU-052) | Issue `[HU-XXX]` con la plantilla del docente |
+| Historia de usuario (19 historias, HU-001 a HU-019) | Issue `HU-XXX Título` con la plantilla del docente |
 | Trazabilidad FUN / PRO / RN | Campo `Trazabilidad` del Project |
 | Prioridad | Campo `Prioridad` (Alta, Media, Baja) |
 | Planificación | Campos `Corte` y `Sprint` |
@@ -42,4 +42,6 @@ Centralizar la información operativa de One Click Caribe, automatizar el cálcu
 
 - `.github/ISSUE_TEMPLATE/historia-de-usuario.md`: plantilla del docente para crear historias desde *New issue*.
 - `docs/plantilla/`: copia literal de la plantilla del docente.
-- `docs/historias/`: especificación de cada historia documentada (una por commit).
+- `docs/historias/`: especificación de las 19 historias del refinamiento final, un archivo por historia con el formato `HU-XXX-descripcion-corta.md` (por ejemplo, `HU-001-registrarme-en-el-portal.md`).
+- `docs/refinamiento/Refinamiento_Final.md`: documento de refinamiento final del backlog (alcance, actores, historias, endpoints, reglas de negocio y criterios transversales).
+- `docs/inventario/Inventario_APIs_OneClickCaribe.xlsx`: inventario de APIs del Web Service, alineado con las 19 historias.
