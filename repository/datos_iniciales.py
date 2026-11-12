@@ -12,10 +12,9 @@ _AHORA = datetime.now(ZONA_COLOMBIA).replace(microsecond=0)
 _FIN_DEL_DIA = _AHORA.replace(hour=23, minute=59, second=59)
 _HOY = _AHORA.isoformat()
 
-# Cuentas de acceso. Contraseñas de prueba: Cliente2026*, Luis2026*, Admin2026*, Asesor2026*
+# Cuentas de acceso. Contraseñas de prueba: Luis2026*, Admin2026*, Asesor2026*.
+# La cliente CLI-00188 (mfrojas@correo.com) no se precarga: se registra al probar HU-001.
 CUENTAS = [
-    {"cuentaId": "CTA-001", "correo": "mfrojas@correo.com", "rol": "cliente", "clienteId": "CLI-00188",
-     "contrasenaCifrada": "pbkdf2_sha256$100000$2abbe3f95ba57bbc96e680efb97f59de$429b84a90bb047ba4e6ffa37f7fb97cb95ec548af1a9c23b651419f9b1109649"},
     {"cuentaId": "CTA-002", "correo": "lagomez@correo.com", "rol": "cliente", "clienteId": "CLI-00190",
      "contrasenaCifrada": "pbkdf2_sha256$100000$c10e92ab53dc0ef802bff793607804eb$0277b8c8bbe034b33503716a3c34b1f4f55967036c93b7ca9bb57e46e5054dde"},
     {"cuentaId": "CTA-003", "correo": "admin@oneclickcaribe.com", "rol": "administradora", "clienteId": None,
@@ -25,10 +24,6 @@ CUENTAS = [
 ]
 
 CLIENTES = [
-    {"clienteId": "CLI-00188", "documento": "1098765432", "nombre": "María Fernanda Rojas Díaz",
-     "telefono": "+573001234567", "correo": "mfrojas@correo.com", "nacionalidad": "CO", "tipoCliente": "pareja",
-     "autorizacionDatos": {"aceptada": True, "versionPolitica": "1.0", "fechaAutorizacion": "2026-11-01T09:00:00-05:00"},
-     "fechaRegistro": "2026-11-01T09:00:00-05:00"},
     {"clienteId": "CLI-00190", "documento": "1095123456", "nombre": "Luis Andrés Gómez Pérez",
      "telefono": "+573157654321", "correo": "lagomez@correo.com", "nacionalidad": "CO", "tipoCliente": "individual",
      "autorizacionDatos": {"aceptada": True, "versionPolitica": "1.0", "fechaAutorizacion": "2026-11-02T10:30:00-05:00"},
