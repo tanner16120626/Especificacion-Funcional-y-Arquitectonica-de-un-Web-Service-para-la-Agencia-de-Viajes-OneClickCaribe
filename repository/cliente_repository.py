@@ -16,6 +16,10 @@ class ClienteRepository:
     def buscar_por_documento(self, documento: str) -> Optional[dict]:
         return next((c for c in self._clientes if c["documento"] == documento), None)
 
+    def buscar_cuenta_por_correo(self, correo: str) -> Optional[dict]:
+        correo = (correo or "").strip().lower()
+        return next((c for c in self._cuentas if (c["correo"] or "").strip().lower() == correo), None)
+
     def siguiente_cliente_id(self) -> str:
         usados = {int(c["clienteId"].split("-")[1]) for c in self._clientes}
         numero = CONSECUTIVO_INICIAL

@@ -9,7 +9,7 @@ Que el sistema valide mi correo y mi contraseña y me entregue un token de acces
 - El cliente diligencia el formulario del portal web, que envía la solicitud en JSON al endpoint.
 - El sistema consume el endpoint /api/v1/auth/login de `clientes.api` con el método POST.
 - La capa API valida el formato del JSON y delega el caso de uso a `IniciarSesionService`.
-- El repositorio en memoria busca la cuenta por correo y el dominio compara la contraseña con su versión cifrada.
+- El repositorio en memoria busca la cuenta por correo y el servicio compara la contraseña con su versión cifrada.
 - Si las credenciales son correctas, se genera un token JWT firmado con SECRET_KEY y con la vigencia definida en ACCESS_TOKEN_EXPIRE_MINUTES.
 - El token incluye el identificador y el rol de la cuenta (`cliente`, `administradora` o `asesor`); con él se controla el acceso a los demás endpoints.
 - Se reciben o consultan los campos:
@@ -25,16 +25,16 @@ Que el sistema valide mi correo y mi contraseña y me entregue un token de acces
 - [ ] Si las credenciales son correctas se devuelve un token de acceso firmado, su tipo (`bearer`), su vigencia en minutos y el rol de la cuenta.
 - [ ] Si el correo no existe o la contraseña no coincide se responde 401 con el mismo mensaje, sin indicar cuál de los dos falló.
 - [ ] La vigencia del token se toma de ACCESS_TOKEN_EXPIRE_MINUTES y la firma de SECRET_KEY, definidos en el archivo .env.
-- [ ] Los errores de formato del JSON (campos faltantes o tipos inválidos) se responden con código 400 y la estructura success, data y message.
+- [ ] Los errores de formato del JSON (campos faltantes o tipos inválidos) se responden con código 400 y la estructura success, data y message. Mensajes exactos: sin correo, "El campo 'correo' es obligatorio"; contrasena enviada como número, "El campo 'contrasena' debe ser un texto".
 
 
 ### 2. 📆 Estructura de la información
 
-- [ ] Se responde con la siguiente estructura en JSON:
+- [ ] Se responde con la siguiente estructura en JSON (el valor de accessToken se genera en cada inicio de sesión):
 
 ```json
 {
-  "message": "Inicio de sesión exitoso",
+  "success": true,
   "data": {
     "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     "tipoToken": "bearer",
@@ -42,7 +42,7 @@ Que el sistema valide mi correo y mi contraseña y me entregue un token de acces
     "rol": "cliente",
     "clienteId": "CLI-00188"
   },
-  "success": true
+  "message": "Inicio de sesión exitoso"
 }
 ```
 
@@ -50,9 +50,9 @@ Que el sistema valide mi correo y mi contraseña y me entregue un token de acces
 
 ```json
 {
-  "message": "Correo o contraseña incorrectos",
+  "success": false,
   "data": null,
-  "success": false
+  "message": "Correo o contraseña incorrectos"
 }
 ```
 
@@ -69,7 +69,7 @@ Que el sistema valide mi correo y mi contraseña y me entregue un token de acces
 
 ```json
 {
-  "message": "Inicio de sesión exitoso",
+  "success": true,
   "data": {
     "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     "tipoToken": "bearer",
@@ -77,7 +77,7 @@ Que el sistema valide mi correo y mi contraseña y me entregue un token de acces
     "rol": "cliente",
     "clienteId": "CLI-00188"
   },
-  "success": true
+  "message": "Inicio de sesión exitoso"
 }
 
 ````
@@ -86,9 +86,9 @@ Que el sistema valide mi correo y mi contraseña y me entregue un token de acces
 
 ```json
 {
-  "message": "Correo o contraseña incorrectos",
+  "success": false,
   "data": null,
-  "success": false
+  "message": "Correo o contraseña incorrectos"
 }
 ```
 
@@ -98,7 +98,7 @@ Que el sistema valide mi correo y mi contraseña y me entregue un token de acces
 
 ### ✅ Caso 1: 
 
-- **Precondición:** El cliente CLI-00188 está registrado con el correo mfrojas@correo.com.
+- **Precondición:** El cliente CLI-00188 está registrado con el correo mfrojas@correo.com (registrado previamente con HU-001).
 - **Acción:** Ejecutar el endpoint POST /api/v1/auth/login con ese correo y su contraseña.
 - **Resultado esperado:**
 
@@ -115,20 +115,21 @@ Que el sistema valide mi correo y mi contraseña y me entregue un token de acces
 
   - Código HTTP 200 OK
   - Campo data.rol = "administradora"
-  - El token permite usar los endpoints de proveedores
+  - Campo data.clienteId = null, porque la cuenta no corresponde a un cliente
 
 ### ✅ Caso 3: 
 
 - **Precondición:** Ejecución exitosa del endpoint.
 - **Resultado esperado:** La respuesta JSON debe contener exactamente los campos:
 
-  - "accessToken" (texto)
-  - "tipoToken" (texto)
-  - "expiraEnMinutos" (número)
-  - "rol" (texto)
-  - "clienteId" (texto)
-  - "message" (texto)
   - "success" (booleano)
+  - "data" (objeto), con los campos:
+    - "accessToken" (texto)
+    - "tipoToken" (texto)
+    - "expiraEnMinutos" (número)
+    - "rol" (texto)
+    - "clienteId" (texto, o null en cuentas que no son de cliente)
+  - "message" (texto)
 
 ### ❌ Caso 4: 
 
@@ -162,7 +163,7 @@ Que el sistema valide mi correo y mi contraseña y me entregue un token de acces
 
 ## 🧪 Pruebas Completadas
 
-- [ ] Se ejecutaron pruebas unitarias para validar la validación de credenciales, la firma y la vigencia del token.
+- [ ] Se ejecutaron pruebas funcionales en Swagger para validar la validación de credenciales, la firma y la vigencia del token.
 - [ ] Se cubrieron los casos de error y de excepción.
 - [ ] Las pruebas funcionales están documentadas y pasadas.
 
