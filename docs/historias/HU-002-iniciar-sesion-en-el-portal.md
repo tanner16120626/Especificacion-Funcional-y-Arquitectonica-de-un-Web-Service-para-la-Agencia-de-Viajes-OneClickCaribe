@@ -21,16 +21,16 @@ Que el sistema valide mi correo y mi contraseña y me entregue un token de acces
 
 ### 1. 🔍 Estructura y lógica del servicio
 
-- [ ] Se expone un endpoint POST que recibe en el cuerpo JSON correo y contrasena.
-- [ ] Si las credenciales son correctas se devuelve un token de acceso firmado, su tipo (`bearer`), su vigencia en minutos y el rol de la cuenta.
-- [ ] Si el correo no existe o la contraseña no coincide se responde 401 con el mismo mensaje, sin indicar cuál de los dos falló.
-- [ ] La vigencia del token se toma de ACCESS_TOKEN_EXPIRE_MINUTES y la firma de SECRET_KEY, definidos en el archivo .env.
-- [ ] Los errores de formato del JSON (campos faltantes o tipos inválidos) se responden con código 400 y la estructura success, data y message. Mensajes exactos: sin correo, "El campo 'correo' es obligatorio"; contrasena enviada como número, "El campo 'contrasena' debe ser un texto".
+- [x] Se expone un endpoint POST que recibe en el cuerpo JSON correo y contrasena.
+- [x] Si las credenciales son correctas se devuelve un token de acceso firmado, su tipo (`bearer`), su vigencia en minutos y el rol de la cuenta.
+- [x] Si el correo no existe o la contraseña no coincide se responde 401 con el mismo mensaje, sin indicar cuál de los dos falló.
+- [x] La vigencia del token se toma de ACCESS_TOKEN_EXPIRE_MINUTES y la firma de SECRET_KEY, definidos en el archivo .env.
+- [x] Los errores de formato del JSON (campos faltantes o tipos inválidos) se responden con código 400 y la estructura success, data y message. Mensajes exactos: sin correo, "El campo 'correo' es obligatorio"; contrasena enviada como número, "El campo 'contrasena' debe ser un texto".
 
 
 ### 2. 📆 Estructura de la información
 
-- [ ] Se responde con la siguiente estructura en JSON (el valor de accessToken se genera en cada inicio de sesión):
+- [x] Se responde con la siguiente estructura en JSON (el valor de accessToken se genera en cada inicio de sesión):
 
 ```json
 {
@@ -46,7 +46,7 @@ Que el sistema valide mi correo y mi contraseña y me entregue un token de acces
 }
 ```
 
-- [ ] Si las credenciales no son válidas, el backend retorna:
+- [x] Si las credenciales no son válidas, el backend retorna:
 
 ```json
 {
@@ -82,7 +82,7 @@ Que el sistema valide mi correo y mi contraseña y me entregue un token de acces
 
 ````
 
-- [ ] Si las credenciales no son válidas, el backend retorna:
+- [x] Si las credenciales no son válidas, el backend retorna:
 
 ```json
 {
@@ -157,20 +157,20 @@ Que el sistema valide mi correo y mi contraseña y me entregue un token de acces
 
 ## 📦 Alcance Funcional
 
-- [ ] El endpoint autentica al usuario y entrega un token firmado con vigencia limitada.
-- [ ] Las credenciales inválidas se rechazan sin revelar qué dato falló.
-- [ ] La respuesta JSON cumple con el contrato definido.
+- [x] El endpoint autentica al usuario y entrega un token firmado con vigencia limitada.
+- [x] Las credenciales inválidas se rechazan sin revelar qué dato falló.
+- [x] La respuesta JSON cumple con el contrato definido.
 
 ## 🧪 Pruebas Completadas
 
-- [ ] Se ejecutaron pruebas funcionales en Swagger para validar la validación de credenciales, la firma y la vigencia del token.
-- [ ] Se cubrieron los casos de error y de excepción.
-- [ ] Las pruebas funcionales están documentadas y pasadas.
+- [x] Se ejecutaron pruebas funcionales en Swagger para validar la validación de credenciales, la firma y la vigencia del token.
+- [x] Se cubrieron los casos de error y de excepción.
+- [x] Las pruebas funcionales están documentadas y pasadas.
 
 ## 📄 Documentación Técnica
 
-- [ ] Endpoint documentado en Swagger / OpenAPI.
-- [ ] Se describe:
+- [x] Endpoint documentado en Swagger / OpenAPI.
+- [x] Se describe:
 
   - Propósito del endpoint
   - Campos de entrada y salida
@@ -179,5 +179,5 @@ Que el sistema valide mi correo y mi contraseña y me entregue un token de acces
 
 ## 🔐 Manejo de Errores
 
-- [ ] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
-- [ ] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.
+- [x] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
+- [x] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.
