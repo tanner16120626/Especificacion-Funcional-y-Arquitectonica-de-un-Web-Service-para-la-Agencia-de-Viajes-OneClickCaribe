@@ -8,10 +8,10 @@ Que el sistema me permita registrarme con mis datos personales, una contraseña 
 
 - El cliente diligencia el formulario del portal web, que envía la solicitud en JSON al endpoint.
 - El sistema consume el endpoint /api/v1/clientes de `clientes.api` con el método POST.
-- La capa API valida el formato del JSON y delega el caso de uso a `RegistrarClienteService`.
+- La capa API valida el formato del JSON y delega el caso de uso al método `registrar` de `ClienteService`.
 - El dominio valida que el cliente sea persona natural (RN-01) y que la nacionalidad y al menos un dato de contacto estén informados (RN-04).
 - Se exige la autorización expresa del tratamiento de datos personales (Ley 1581 de 2012); sin ella, el registro se rechaza.
-- El repositorio en memoria verifica que el documento no esté registrado (RN-05) y guarda la contraseña cifrada.
+- El servicio verifica en el repositorio en memoria que el documento no esté registrado (RN-05), cifra la contraseña y guarda el cliente y su cuenta de acceso.
 - Se reciben o consultan los campos:
 - documento / Documento de identidad
 - nombre / Nombre completo
@@ -27,22 +27,23 @@ Que el sistema me permita registrarme con mis datos personales, una contraseña 
 
 ### 1. 🔍 Estructura y lógica del servicio
 
-- [ ] Se expone un endpoint POST que recibe en el cuerpo JSON documento, nombre, telefono, correo, nacionalidad, tipoCliente, contrasena y aceptaTratamientoDatos.
-- [ ] Se valida que documento, nombre, nacionalidad y tipoCliente estén informados, y que exista al menos uno entre telefono y correo (RN-04).
-- [ ] Se valida que tipoCliente sea `individual`, `pareja` o `grupo_familiar`; el valor `corporativo` se rechaza (RN-01).
-- [ ] aceptaTratamientoDatos debe ser `true`; se registran la fecha de la autorización y la versión de la política de tratamiento de datos (Ley 1581 de 2012).
-- [ ] La contraseña tiene mínimo 8 caracteres, se almacena cifrada (hash) y nunca se devuelve en ninguna respuesta.
-- [ ] Se valida que el documento no tenga un registro previo (RN-05).
-- [ ] Los errores de formato del JSON (campos faltantes o tipos inválidos) se responden con código 400 y la estructura success, data y message.
+- [x] Se expone un endpoint POST que recibe en el cuerpo JSON documento, nombre, telefono, correo, nacionalidad, tipoCliente, contrasena y aceptaTratamientoDatos.
+- [x] Se valida que documento, nombre, nacionalidad y tipoCliente estén informados, y que exista al menos uno entre telefono y correo (RN-04).
+- [x] Se valida que la nacionalidad sea un código ISO de 2 letras.
+- [x] Se valida que tipoCliente sea `individual`, `pareja` o `grupo_familiar`; el valor `corporativo` se rechaza (RN-01).
+- [x] aceptaTratamientoDatos debe ser `true`; se registran la fecha de la autorización y la versión de la política de tratamiento de datos (Ley 1581 de 2012).
+- [x] La contraseña tiene mínimo 8 caracteres, se almacena cifrada (hash) y nunca se devuelve en ninguna respuesta.
+- [x] Se valida que el documento no tenga un registro previo (RN-05).
+- [x] Los errores de formato del JSON (campos faltantes o tipos inválidos) se responden con código 400 y la estructura success, data y message.
 
 
 ### 2. 📆 Estructura de la información
 
-- [ ] Se responde con la siguiente estructura en JSON:
+- [x] Se responde con la siguiente estructura en JSON (los campos fechaAutorizacion y fechaRegistro toman la fecha y hora en que se realiza el registro):
 
 ```json
 {
-  "message": "Cliente registrado exitosamente",
+  "success": true,
   "data": {
     "clienteId": "CLI-00188",
     "documento": "1098765432",
@@ -54,24 +55,24 @@ Que el sistema me permita registrarme con mis datos personales, una contraseña 
     "autorizacionDatos": {
       "aceptada": true,
       "versionPolitica": "1.0",
-      "fechaAutorizacion": "2026-11-05T10:15:00-05:00"
+      "fechaAutorizacion": "2026-11-11T10:15:00-05:00"
     },
-    "fechaRegistro": "2026-11-05T10:15:00-05:00"
+    "fechaRegistro": "2026-11-11T10:15:00-05:00"
   },
-  "success": true
+  "message": "Cliente registrado exitosamente"
 }
 ```
 
-- [ ] Si el cliente ya existe, el backend retorna:
+- [x] Si el cliente ya existe, el backend retorna:
 
 ```json
 {
-  "message": "El cliente ya se encuentra registrado",
+  "success": false,
   "data": {
     "clienteId": "CLI-00188",
     "documento": "1098765432"
   },
-  "success": false
+  "message": "El cliente ya se encuentra registrado"
 }
 ```
 
@@ -88,7 +89,7 @@ Que el sistema me permita registrarme con mis datos personales, una contraseña 
 
 ```json
 {
-  "message": "Cliente registrado exitosamente",
+  "success": true,
   "data": {
     "clienteId": "CLI-00188",
     "documento": "1098765432",
@@ -100,25 +101,25 @@ Que el sistema me permita registrarme con mis datos personales, una contraseña 
     "autorizacionDatos": {
       "aceptada": true,
       "versionPolitica": "1.0",
-      "fechaAutorizacion": "2026-11-05T10:15:00-05:00"
+      "fechaAutorizacion": "2026-11-11T10:15:00-05:00"
     },
-    "fechaRegistro": "2026-11-05T10:15:00-05:00"
+    "fechaRegistro": "2026-11-11T10:15:00-05:00"
   },
-  "success": true
+  "message": "Cliente registrado exitosamente"
 }
 
 ````
 
-- [ ] Si el cliente ya existe, el backend retorna:
+- [x] Si el cliente ya existe, el backend retorna:
 
 ```json
 {
-  "message": "El cliente ya se encuentra registrado",
+  "success": false,
   "data": {
     "clienteId": "CLI-00188",
     "documento": "1098765432"
   },
-  "success": false
+  "message": "El cliente ya se encuentra registrado"
 }
 ```
 
@@ -154,28 +155,43 @@ Que el sistema me permita registrarme con mis datos personales, una contraseña 
 - **Precondición:** Ejecución exitosa del endpoint.
 - **Resultado esperado:** La respuesta JSON debe contener exactamente los campos:
 
-  - "clienteId" (texto)
-  - "documento" (texto)
-  - "nombre" (texto)
-  - "telefono" (texto)
-  - "correo" (texto)
-  - "nacionalidad" (texto)
-  - "tipoCliente" (texto)
-  - "autorizacionDatos" (objeto)
-  - "fechaRegistro" (fecha ISO 8601)
-  - "message" (texto)
   - "success" (booleano)
+  - "data" (objeto), con los campos:
+    - "clienteId" (texto)
+    - "documento" (texto)
+    - "nombre" (texto)
+    - "telefono" (texto)
+    - "correo" (texto)
+    - "nacionalidad" (texto)
+    - "tipoCliente" (texto)
+    - "autorizacionDatos" (objeto: "aceptada" booleano, "versionPolitica" texto, "fechaAutorizacion" fecha ISO 8601)
+    - "fechaRegistro" (fecha ISO 8601)
+  - "message" (texto)
 
 ### ❌ Caso 4: 
 
-- **Precondición:** El cliente envía aceptaTratamientoDatos = false, omite la nacionalidad o usa tipoCliente "corporativo".
-- **Acción:** Ejecutar el endpoint POST /api/v1/clientes con cada uno de esos datos inválidos.
+- **Precondición:** El cliente envía datos que no cumplen las reglas del registro.
+- **Acción:** Ejecutar el endpoint POST /api/v1/clientes con cada uno de los datos inválidos de la tabla.
 - **Resultado esperado:**
 
   - Código HTTP 400 Bad Request
   - No se crea el registro
   - Campo success = false y campo data = null
-  - Campo message contiene el texto: "Debe autorizar el tratamiento de sus datos personales", "La nacionalidad del cliente es obligatoria" o "Solo se registran clientes persona natural", según el caso
+  - Campo message contiene el texto correspondiente a cada caso:
+
+| Dato inválido | Texto del campo message |
+|---|---|
+| aceptaTratamientoDatos = false | "Debe autorizar el tratamiento de sus datos personales" |
+| Sin nacionalidad | "La nacionalidad del cliente es obligatoria" |
+| tipoCliente = "corporativo" | "Solo se registran clientes persona natural" |
+| Sin telefono ni correo | "Debe informar al menos un dato de contacto: teléfono o correo" |
+| contrasena con menos de 8 caracteres | "La contraseña debe tener mínimo 8 caracteres" |
+| documento enviado como número | "El campo 'documento' debe ser un texto" |
+| Sin documento | "El documento es obligatorio" |
+| Sin nombre | "El nombre es obligatorio" |
+| Sin tipoCliente | "El tipo de cliente es obligatorio" |
+| tipoCliente = "empresa" | "El tipo de cliente debe ser individual, pareja o grupo_familiar" |
+| nacionalidad = "COL" | "La nacionalidad debe ser un código ISO de 2 letras" |
 
 ### ❌ Caso 5: 
 
@@ -192,20 +208,20 @@ Que el sistema me permita registrarme con mis datos personales, una contraseña 
 
 ## 📦 Alcance Funcional
 
-- [ ] El endpoint registra al cliente con su autorización de tratamiento de datos.
-- [ ] La contraseña se guarda cifrada y la validación de duplicidad impide dos registros con el mismo documento.
-- [ ] La respuesta JSON cumple con el contrato definido.
+- [x] El endpoint registra al cliente con su autorización de tratamiento de datos.
+- [x] La contraseña se guarda cifrada y la validación de duplicidad impide dos registros con el mismo documento.
+- [x] La respuesta JSON cumple con el contrato definido.
 
 ## 🧪 Pruebas Completadas
 
-- [ ] Se ejecutaron pruebas unitarias para validar la autorización de datos, la contraseña, la persona natural y la duplicidad del documento.
-- [ ] Se cubrieron los casos de error y de excepción.
-- [ ] Las pruebas funcionales están documentadas y pasadas.
+- [x] Se ejecutaron pruebas funcionales en Swagger para validar la autorización de datos, la contraseña, la persona natural, la nacionalidad y la duplicidad del documento.
+- [x] Se cubrieron los casos de error y de excepción.
+- [x] Las pruebas funcionales están documentadas y pasadas.
 
 ## 📄 Documentación Técnica
 
-- [ ] Endpoint documentado en Swagger / OpenAPI.
-- [ ] Se describe:
+- [x] Endpoint documentado en Swagger / OpenAPI.
+- [x] Se describe:
 
   - Propósito del endpoint
   - Campos de entrada y salida
@@ -214,5 +230,5 @@ Que el sistema me permita registrarme con mis datos personales, una contraseña 
 
 ## 🔐 Manejo de Errores
 
-- [ ] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
-- [ ] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.
+- [x] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
+- [x] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.
