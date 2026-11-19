@@ -1,8 +1,8 @@
-"""Servicio de clientes: orquesta el registro aplicando las reglas del dominio."""
+"""Servicio de clientes: orquesta el registro y la consulta aplicando las reglas del dominio."""
 from datetime import datetime, timedelta, timezone
 
-from domain.cliente import VERSION_POLITICA_DATOS, Cliente, ClienteCreate, ClienteResponse
-from domain.errores import ConflictoError
+from domain.cliente import VERSION_POLITICA_DATOS, Cliente, ClienteCreate, ClientePerfil, ClienteResponse
+from domain.errores import ConflictoError, NoEncontradoError
 from repository.cliente_repository import ClienteRepository
 from service.seguridad_service import cifrar_contrasena
 
@@ -50,3 +50,17 @@ class ClienteService:
         }
         self._repositorio.guardar(cliente, cuenta)
         return ClienteResponse(**cliente).model_dump()
+
+
+class ConsultarClienteService:
+    """Caso de uso de la consulta del perfil del cliente."""
+
+    def __init__(self, repositorio: ClienteRepository):
+        self._repositorio = repositorio
+
+    def consultar(self, cliente_id: str) -> dict:
+        """HU-003: devuelve los datos registrados del cliente identificado por el token, sin la contraseña."""
+        cliente = self._repositorio.buscar_por_id(cliente_id)
+        if cliente is None:
+            raise NoEncontradoError("El cliente no se encuentra registrado")
+        return ClientePerfil(**cliente).model_dump()
