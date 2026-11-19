@@ -16,6 +16,9 @@ class ClienteRepository:
     def buscar_por_documento(self, documento: str) -> Optional[dict]:
         return next((c for c in self._clientes if c["documento"] == documento), None)
 
+    def buscar_por_id(self, cliente_id: str) -> Optional[dict]:
+        return next((c for c in self._clientes if c["clienteId"] == cliente_id), None)
+
     def buscar_cuenta_por_correo(self, correo: str) -> Optional[dict]:
         correo = (correo or "").strip().lower()
         return next((c for c in self._cuentas if (c["correo"] or "").strip().lower() == correo), None)
