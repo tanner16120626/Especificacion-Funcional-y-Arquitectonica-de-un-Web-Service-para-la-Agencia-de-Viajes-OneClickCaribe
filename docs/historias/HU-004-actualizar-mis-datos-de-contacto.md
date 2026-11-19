@@ -8,9 +8,9 @@ Que el sistema me permita actualizar mi teléfono y mi correo desde el portal.
 
 - El cliente diligencia el formulario del portal web, que envía la solicitud en JSON al endpoint.
 - El sistema consume el endpoint /api/v1/clientes/me de `clientes.api` con el método PATCH.
-- La capa API valida el formato del JSON y delega el caso de uso a `ActualizarContactoService`.
+- La capa API valida el token de acceso del encabezado Authorization y el formato del JSON, y delega el caso de uso a `ActualizarContactoService`.
 - El servicio identifica al cliente por su token de acceso.
-- El dominio valida el formato de los datos y que quede al menos un dato de contacto (RN-04).
+- El dominio valida el formato del correo y que quede al menos un dato de contacto (RN-04).
 - Solo se actualizan teléfono y correo; documento, nombre y nacionalidad no se modifican desde el portal.
 - Se reciben o consultan los campos:
 - telefono / Nuevo teléfono de contacto
@@ -21,38 +21,42 @@ Que el sistema me permita actualizar mi teléfono y mi correo desde el portal.
 
 ### 1. 🔍 Estructura y lógica del servicio
 
-- [ ] Se expone un endpoint PATCH en /api/v1/clientes/me que recibe en el cuerpo JSON telefono y/o correo.
-- [ ] El endpoint exige el token de acceso en el encabezado `Authorization: Bearer`; sin token, o con el token vencido, responde 401.
-- [ ] Solo se modifican los campos enviados; documento, nombre, nacionalidad y tipoCliente no se modifican.
-- [ ] Debe quedar al menos un dato de contacto informado (RN-04) y el correo no puede pertenecer a otro cliente.
-- [ ] Se garantiza el derecho del titular a actualizar sus datos (Ley 1581 de 2012).
-- [ ] Los errores de formato del JSON (campos faltantes o tipos inválidos) se responden con código 400 y la estructura success, data y message.
+- [x] Se expone un endpoint PATCH en /api/v1/clientes/me que recibe en el cuerpo JSON telefono y/o correo.
+- [x] El endpoint exige el token de acceso en el encabezado `Authorization: Bearer`. Sin token o con un token alterado responde 401 con "Token de acceso inválido o ausente"; con el token vencido responde 401 con "La sesión expiró. Inicie sesión nuevamente".
+- [x] Solo se modifican los campos enviados; documento, nombre, nacionalidad y tipoCliente no se modifican.
+- [x] Debe quedar al menos un dato de contacto informado (RN-04) y el correo no puede pertenecer a otro cliente.
+- [x] Se garantiza el derecho del titular a actualizar sus datos (Ley 1581 de 2012).
+- [x] Los errores de formato del JSON se responden con código 400 y la estructura success, data y message. Mensajes exactos: sin telefono ni correo, "Debe enviar el teléfono o el correo a actualizar"; telefono enviado como número, "El campo 'telefono' debe ser un texto".
+- [x] Solo las cuentas con rol cliente actualizan sus datos de contacto; las demás cuentas reciben 403 con el mensaje "No tiene permisos para realizar esta acción".
+- [x] Si el cliente del token no se encuentra en el repositorio, se responde 404 con el mensaje "El cliente no se encuentra registrado".
+- [x] Si se actualiza el correo, el inicio de sesión (HU-002) se realiza con el correo nuevo.
+- [x] El correo no puede quedar vacío porque es el usuario de acceso; si se envía vacío se responde 400 con el mensaje "El correo no puede quedar vacío porque es su usuario de acceso".
 
 
 ### 2. 📆 Estructura de la información
 
-- [ ] Se responde con la siguiente estructura en JSON:
+- [x] Se responde con la siguiente estructura en JSON (fechaActualizacion corresponde a la fecha y hora de la actualización):
 
 ```json
 {
-  "message": "Datos de contacto actualizados exitosamente",
+  "success": true,
   "data": {
     "clienteId": "CLI-00188",
     "telefono": "+573109876543",
     "correo": "mfrojas@correo.com",
-    "fechaActualizacion": "2026-11-07T10:00:00-05:00"
+    "fechaActualizacion": "2026-11-11T10:15:00-05:00"
   },
-  "success": true
+  "message": "Datos de contacto actualizados exitosamente"
 }
 ```
 
-- [ ] Si el correo ya pertenece a otro cliente, el backend retorna:
+- [x] Si el correo ya pertenece a otro cliente, el backend retorna:
 
 ```json
 {
-  "message": "El correo ya está registrado por otro cliente",
+  "success": false,
   "data": null,
-  "success": false
+  "message": "El correo ya está registrado por otro cliente"
 }
 ```
 
@@ -69,25 +73,25 @@ Que el sistema me permita actualizar mi teléfono y mi correo desde el portal.
 
 ```json
 {
-  "message": "Datos de contacto actualizados exitosamente",
+  "success": true,
   "data": {
     "clienteId": "CLI-00188",
     "telefono": "+573109876543",
     "correo": "mfrojas@correo.com",
-    "fechaActualizacion": "2026-11-07T10:00:00-05:00"
+    "fechaActualizacion": "2026-11-11T10:15:00-05:00"
   },
-  "success": true
+  "message": "Datos de contacto actualizados exitosamente"
 }
 
 ````
 
-- [ ] Si el correo ya pertenece a otro cliente, el backend retorna:
+- [x] Si el correo ya pertenece a otro cliente, el backend retorna:
 
 ```json
 {
-  "message": "El correo ya está registrado por otro cliente",
+  "success": false,
   "data": null,
-  "success": false
+  "message": "El correo ya está registrado por otro cliente"
 }
 ```
 
@@ -97,8 +101,8 @@ Que el sistema me permita actualizar mi teléfono y mi correo desde el portal.
 
 ### ✅ Caso 1: 
 
-- **Precondición:** El cliente CLI-00188 tiene un token vigente.
-- **Acción:** Ejecutar el endpoint PATCH /api/v1/clientes/me con un nuevo teléfono.
+- **Precondición:** El cliente CLI-00188 (registrado con HU-001) inició sesión con HU-002 y tiene un token vigente.
+- **Acción:** Ejecutar el endpoint PATCH /api/v1/clientes/me con el teléfono +573109876543.
 - **Resultado esperado:**
 
   - Código HTTP 200 OK
@@ -108,7 +112,7 @@ Que el sistema me permita actualizar mi teléfono y mi correo desde el portal.
 
 ### ✅ Caso 2:
 
-- **Precondición:** El correo nuevo ya está registrado por el cliente CLI-00190.
+- **Precondición:** El correo nuevo, lagomez@correo.com, ya está registrado por el cliente CLI-00190.
 - **Acción:** Ejecutar el endpoint con ese correo.
 - **Resultado esperado:**
 
@@ -122,12 +126,13 @@ Que el sistema me permita actualizar mi teléfono y mi correo desde el portal.
 - **Precondición:** Ejecución exitosa del endpoint.
 - **Resultado esperado:** La respuesta JSON debe contener exactamente los campos:
 
-  - "clienteId" (texto)
-  - "telefono" (texto)
-  - "correo" (texto)
-  - "fechaActualizacion" (fecha ISO 8601)
-  - "message" (texto)
   - "success" (booleano)
+  - "data" (objeto), con los campos:
+    - "clienteId" (texto)
+    - "telefono" (texto, o null si se dejó vacío)
+    - "correo" (texto)
+    - "fechaActualizacion" (fecha ISO 8601)
+  - "message" (texto)
 
 ### ❌ Caso 4: 
 
@@ -155,20 +160,20 @@ Que el sistema me permita actualizar mi teléfono y mi correo desde el portal.
 
 ## 📦 Alcance Funcional
 
-- [ ] El endpoint actualiza el teléfono y el correo del cliente autenticado.
-- [ ] No se modifican datos de identidad ni se permite un correo de otro cliente.
-- [ ] La respuesta JSON cumple con el contrato definido.
+- [x] El endpoint actualiza el teléfono y el correo del cliente autenticado.
+- [x] No se modifican datos de identidad ni se permite un correo de otro cliente.
+- [x] La respuesta JSON cumple con el contrato definido.
 
 ## 🧪 Pruebas Completadas
 
-- [ ] Se ejecutaron pruebas unitarias para validar los campos modificables, el formato del correo y la duplicidad.
-- [ ] Se cubrieron los casos de error y de excepción.
-- [ ] Las pruebas funcionales están documentadas y pasadas.
+- [x] Se ejecutaron pruebas funcionales en Swagger para validar los campos modificables, el formato del correo y la duplicidad.
+- [x] Se cubrieron los casos de error y de excepción.
+- [x] Las pruebas funcionales están documentadas y pasadas.
 
 ## 📄 Documentación Técnica
 
-- [ ] Endpoint documentado en Swagger / OpenAPI.
-- [ ] Se describe:
+- [x] Endpoint documentado en Swagger / OpenAPI.
+- [x] Se describe:
 
   - Propósito del endpoint
   - Campos de entrada y salida
@@ -177,5 +182,5 @@ Que el sistema me permita actualizar mi teléfono y mi correo desde el portal.
 
 ## 🔐 Manejo de Errores
 
-- [ ] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
-- [ ] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.
+- [x] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
+- [x] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.

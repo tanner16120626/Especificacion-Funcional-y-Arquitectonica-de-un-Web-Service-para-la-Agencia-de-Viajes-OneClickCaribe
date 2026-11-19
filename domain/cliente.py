@@ -1,4 +1,4 @@
-"""Dominio de clientes: esquemas de entrada y salida, y reglas de negocio del registro."""
+"""Dominio de clientes: esquemas de entrada y salida, y reglas de negocio del registro y del contacto."""
 import re
 from typing import Optional
 
@@ -70,6 +70,18 @@ class ClientePerfil(BaseModel):
     fechaRegistro: str
 
 
+class ContactoUpdate(BaseModel):
+    """Datos de contacto que el cliente puede actualizar. Un campo que no se envía no cambia."""
+
+    telefono: Optional[str] = None
+    correo: Optional[str] = None
+
+    model_config = ConfigDict(json_schema_extra={"example": {"telefono": "+573109876543"}})
+
+
+PATRON_CORREO = r"[^@\s]+@[^@\s]+\.[^@\s]+"
+
+
 def _vacio(valor: Optional[str]) -> bool:
     return valor is None or not str(valor).strip()
 
@@ -101,3 +113,26 @@ class Cliente:
             raise ErrorNegocio("La contraseña debe tener mínimo 8 caracteres")
         if datos.aceptaTratamientoDatos is not True:
             raise ErrorNegocio("Debe autorizar el tratamiento de sus datos personales")
+
+    @staticmethod
+    def nuevo_contacto(actual: dict, datos: ContactoUpdate) -> tuple:
+        """Valida la actualización (RN-04) y devuelve el teléfono y el correo que quedan.
+
+        Un campo que no se envía conserva su valor; un campo enviado vacío queda vacío.
+        """
+        enviados = datos.model_fields_set & {"telefono", "correo"}
+        if not enviados:
+            raise ErrorNegocio("Debe enviar el teléfono o el correo a actualizar")
+        telefono = actual.get("telefono")
+        correo = actual.get("correo")
+        if "telefono" in enviados:
+            telefono = None if _vacio(datos.telefono) else datos.telefono.strip()
+        if "correo" in enviados:
+            correo = None if _vacio(datos.correo) else datos.correo.strip().lower()
+            if correo is not None and not re.fullmatch(PATRON_CORREO, correo):
+                raise ErrorNegocio("El correo no tiene un formato válido")
+        if telefono is None and correo is None:
+            raise ErrorNegocio("Debe conservar al menos un dato de contacto")
+        if "correo" in enviados and correo is None:
+            raise ErrorNegocio("El correo no puede quedar vacío porque es su usuario de acceso")
+        return telefono, correo

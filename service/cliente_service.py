@@ -1,7 +1,14 @@
-"""Servicio de clientes: orquesta el registro y la consulta aplicando las reglas del dominio."""
+"""Servicio de clientes: orquesta el registro, la consulta y la actualización aplicando las reglas del dominio."""
 from datetime import datetime, timedelta, timezone
 
-from domain.cliente import VERSION_POLITICA_DATOS, Cliente, ClienteCreate, ClientePerfil, ClienteResponse
+from domain.cliente import (
+    VERSION_POLITICA_DATOS,
+    Cliente,
+    ClienteCreate,
+    ClientePerfil,
+    ClienteResponse,
+    ContactoUpdate,
+)
 from domain.errores import ConflictoError, NoEncontradoError
 from repository.cliente_repository import ClienteRepository
 from service.seguridad_service import cifrar_contrasena
@@ -64,3 +71,27 @@ class ConsultarClienteService:
         if cliente is None:
             raise NoEncontradoError("El cliente no se encuentra registrado")
         return ClientePerfil(**cliente).model_dump()
+
+
+class ActualizarContactoService:
+    """Caso de uso de la actualización de los datos de contacto del cliente."""
+
+    def __init__(self, repositorio: ClienteRepository):
+        self._repositorio = repositorio
+
+    def actualizar(self, cliente_id: str, datos: ContactoUpdate) -> dict:
+        """HU-004: actualiza el teléfono y el correo del cliente identificado por el token (RN-04)."""
+        cliente = self._repositorio.buscar_por_id(cliente_id)
+        if cliente is None:
+            raise NoEncontradoError("El cliente no se encuentra registrado")
+        telefono, correo = Cliente.nuevo_contacto(cliente, datos)
+        if correo is not None and self._repositorio.correo_en_uso_por_otro(correo, cliente_id):
+            raise ConflictoError("El correo ya está registrado por otro cliente")
+        ahora = datetime.now(ZONA_COLOMBIA).replace(microsecond=0).isoformat()
+        actualizado = self._repositorio.actualizar_contacto(cliente_id, telefono, correo, ahora)
+        return {
+            "clienteId": actualizado["clienteId"],
+            "telefono": actualizado["telefono"],
+            "correo": actualizado["correo"],
+            "fechaActualizacion": actualizado["fechaActualizacion"],
+        }
