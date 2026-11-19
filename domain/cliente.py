@@ -57,6 +57,19 @@ class ClienteResponse(BaseModel):
     fechaRegistro: str
 
 
+class ClientePerfil(BaseModel):
+    """Perfil del cliente autenticado. No incluye la contraseña ni la autorización de datos."""
+
+    clienteId: str
+    documento: str
+    nombre: str
+    telefono: Optional[str] = None
+    correo: Optional[str] = None
+    nacionalidad: str
+    tipoCliente: str
+    fechaRegistro: str
+
+
 def _vacio(valor: Optional[str]) -> bool:
     return valor is None or not str(valor).strip()
 

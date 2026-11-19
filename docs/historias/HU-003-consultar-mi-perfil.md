@@ -8,7 +8,7 @@ Que el sistema me muestre mis datos personales registrados, identificándome con
 
 - El cliente realiza la consulta desde el portal web, que invoca el endpoint.
 - El sistema consume el endpoint /api/v1/clientes/me de `clientes.api` con el método GET.
-- La capa API valida el formato del JSON y delega el caso de uso a `ConsultarClienteService`.
+- La capa API valida el token de acceso del encabezado Authorization y delega el caso de uso a `ConsultarClienteService`.
 - El servicio obtiene el clienteId del token de acceso, no de la URL, de modo que nadie puede consultar los datos de otro cliente.
 - El repositorio en memoria devuelve los datos registrados del cliente, sin la contraseña.
 - Se reciben o consultan los campos:
@@ -19,18 +19,20 @@ Que el sistema me muestre mis datos personales registrados, identificándome con
 
 ### 1. 🔍 Estructura y lógica del servicio
 
-- [ ] Se expone un endpoint GET en /api/v1/clientes/me que identifica al cliente por su token de acceso.
-- [ ] El endpoint exige el token de acceso en el encabezado `Authorization: Bearer`; sin token, o con el token vencido, responde 401.
-- [ ] Se devuelven los datos registrados del cliente; la contraseña nunca se incluye.
+- [x] Se expone un endpoint GET en /api/v1/clientes/me que identifica al cliente por su token de acceso.
+- [x] El endpoint exige el token de acceso en el encabezado `Authorization: Bearer`. Sin token o con un token alterado responde 401 con "Token de acceso inválido o ausente"; con el token vencido responde 401 con "La sesión expiró. Inicie sesión nuevamente".
+- [x] Se devuelven los datos registrados del cliente; la contraseña nunca se incluye.
+- [x] Solo las cuentas con rol cliente consultan su perfil; las demás cuentas reciben 403 con el mensaje "No tiene permisos para realizar esta acción".
+- [x] Si el cliente del token no se encuentra en el repositorio, se responde 404 con el mensaje "El cliente no se encuentra registrado".
 
 
 ### 2. 📆 Estructura de la información
 
-- [ ] Se responde con la siguiente estructura en JSON:
+- [x] Se responde con la siguiente estructura en JSON (fechaRegistro corresponde a la fecha y hora en que el cliente se registró):
 
 ```json
 {
-  "message": "Cliente consultado exitosamente",
+  "success": true,
   "data": {
     "clienteId": "CLI-00188",
     "documento": "1098765432",
@@ -39,19 +41,19 @@ Que el sistema me muestre mis datos personales registrados, identificándome con
     "correo": "mfrojas@correo.com",
     "nacionalidad": "CO",
     "tipoCliente": "pareja",
-    "fechaRegistro": "2026-11-05T10:15:00-05:00"
+    "fechaRegistro": "2026-11-11T10:15:00-05:00"
   },
-  "success": true
+  "message": "Cliente consultado exitosamente"
 }
 ```
 
-- [ ] Si el token está vencido, el backend retorna:
+- [x] Si el token está vencido, el backend retorna:
 
 ```json
 {
-  "message": "La sesión expiró. Inicie sesión nuevamente",
+  "success": false,
   "data": null,
-  "success": false
+  "message": "La sesión expiró. Inicie sesión nuevamente"
 }
 ```
 
@@ -68,7 +70,7 @@ Que el sistema me muestre mis datos personales registrados, identificándome con
 
 ```json
 {
-  "message": "Cliente consultado exitosamente",
+  "success": true,
   "data": {
     "clienteId": "CLI-00188",
     "documento": "1098765432",
@@ -77,20 +79,20 @@ Que el sistema me muestre mis datos personales registrados, identificándome con
     "correo": "mfrojas@correo.com",
     "nacionalidad": "CO",
     "tipoCliente": "pareja",
-    "fechaRegistro": "2026-11-05T10:15:00-05:00"
+    "fechaRegistro": "2026-11-11T10:15:00-05:00"
   },
-  "success": true
+  "message": "Cliente consultado exitosamente"
 }
 
 ````
 
-- [ ] Si el token está vencido, el backend retorna:
+- [x] Si el token está vencido, el backend retorna:
 
 ```json
 {
-  "message": "La sesión expiró. Inicie sesión nuevamente",
+  "success": false,
   "data": null,
-  "success": false
+  "message": "La sesión expiró. Inicie sesión nuevamente"
 }
 ```
 
@@ -100,7 +102,7 @@ Que el sistema me muestre mis datos personales registrados, identificándome con
 
 ### ✅ Caso 1: 
 
-- **Precondición:** El cliente CLI-00188 inició sesión y tiene un token vigente.
+- **Precondición:** El cliente CLI-00188 (registrado con HU-001) inició sesión con HU-002 y tiene un token vigente.
 - **Acción:** Ejecutar el endpoint GET /api/v1/clientes/me con su token.
 - **Resultado esperado:**
 
@@ -111,7 +113,7 @@ Que el sistema me muestre mis datos personales registrados, identificándome con
 
 ### ✅ Caso 2:
 
-- **Precondición:** El token del cliente superó su vigencia.
+- **Precondición:** El token del cliente superó su vigencia (para la prueba, ACCESS_TOKEN_EXPIRE_MINUTES se configura en 1 en el archivo .env).
 - **Acción:** Ejecutar el endpoint GET /api/v1/clientes/me con el token vencido.
 - **Resultado esperado:**
 
@@ -124,16 +126,17 @@ Que el sistema me muestre mis datos personales registrados, identificándome con
 - **Precondición:** Ejecución exitosa del endpoint.
 - **Resultado esperado:** La respuesta JSON debe contener exactamente los campos:
 
-  - "clienteId" (texto)
-  - "documento" (texto)
-  - "nombre" (texto)
-  - "telefono" (texto)
-  - "correo" (texto)
-  - "nacionalidad" (texto)
-  - "tipoCliente" (texto)
-  - "fechaRegistro" (fecha ISO 8601)
-  - "message" (texto)
   - "success" (booleano)
+  - "data" (objeto), con los campos:
+    - "clienteId" (texto)
+    - "documento" (texto)
+    - "nombre" (texto)
+    - "telefono" (texto)
+    - "correo" (texto)
+    - "nacionalidad" (texto)
+    - "tipoCliente" (texto)
+    - "fechaRegistro" (fecha ISO 8601)
+  - "message" (texto)
 
 ### ❌ Caso 4: 
 
@@ -160,20 +163,20 @@ Que el sistema me muestre mis datos personales registrados, identificándome con
 
 ## 📦 Alcance Funcional
 
-- [ ] El endpoint devuelve los datos del cliente autenticado.
-- [ ] Ningún cliente puede consultar los datos de otro.
-- [ ] La respuesta JSON cumple con el contrato definido.
+- [x] El endpoint devuelve los datos del cliente autenticado.
+- [x] Ningún cliente puede consultar los datos de otro.
+- [x] La respuesta JSON cumple con el contrato definido.
 
 ## 🧪 Pruebas Completadas
 
-- [ ] Se ejecutaron pruebas unitarias para validar la identificación por token, el token vencido y el token inválido.
-- [ ] Se cubrieron los casos de error y de excepción.
-- [ ] Las pruebas funcionales están documentadas y pasadas.
+- [x] Se ejecutaron pruebas funcionales en Swagger para validar la identificación por token, el token vencido y el token inválido.
+- [x] Se cubrieron los casos de error y de excepción.
+- [x] Las pruebas funcionales están documentadas y pasadas.
 
 ## 📄 Documentación Técnica
 
-- [ ] Endpoint documentado en Swagger / OpenAPI.
-- [ ] Se describe:
+- [x] Endpoint documentado en Swagger / OpenAPI.
+- [x] Se describe:
 
   - Propósito del endpoint
   - Campos de entrada y salida
@@ -182,5 +185,5 @@ Que el sistema me muestre mis datos personales registrados, identificándome con
 
 ## 🔐 Manejo de Errores
 
-- [ ] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
-- [ ] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.
+- [x] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
+- [x] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.
