@@ -1,4 +1,4 @@
-"""Dominio de proveedores: esquema de entrada y reglas de negocio del registro."""
+"""Dominio de proveedores: esquemas de entrada y reglas de negocio del registro y del cambio de estado."""
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict
 from domain.errores import ErrorNegocio
 
 TIPOS_PROVEEDOR = ("aerolinea", "mayorista", "hotel", "aseguradora", "transporte")
+ESTADOS_PROVEEDOR = ("activo", "inactivo")
 
 
 class ProveedorCreate(BaseModel):
@@ -25,6 +26,18 @@ class ProveedorCreate(BaseModel):
         "porcentajeComision": 12,
         "servicios": ["hospedaje", "traslado"],
         "destinos": ["Cancún", "Ciudad de México"],
+    }})
+
+
+class CambioEstadoProveedor(BaseModel):
+    """Nuevo estado del proveedor y motivo del cambio. El dominio valida los obligatorios."""
+
+    estado: Optional[str] = None
+    motivo: Optional[str] = None
+
+    model_config = ConfigDict(json_schema_extra={"example": {
+        "estado": "inactivo",
+        "motivo": "Fin del convenio comercial",
     }})
 
 
@@ -69,3 +82,19 @@ class Proveedor:
     @staticmethod
     def destinos(datos: ProveedorCreate) -> List[str]:
         return _limpiar_lista(datos.destinos)
+
+    @staticmethod
+    def validar_cambio_estado(datos: CambioEstadoProveedor) -> None:
+        """Valida que el estado sea activo o inactivo y que el motivo esté informado."""
+        if _vacio(datos.estado):
+            raise ErrorNegocio("El estado es obligatorio")
+        if datos.estado.strip().lower() not in ESTADOS_PROVEEDOR:
+            raise ErrorNegocio("El estado debe ser activo o inactivo")
+        if _vacio(datos.motivo):
+            raise ErrorNegocio("El motivo es obligatorio")
+
+    @staticmethod
+    def validar_estado_distinto(estado_actual: str, datos: CambioEstadoProveedor) -> None:
+        """El nuevo estado debe ser distinto del actual."""
+        if datos.estado.strip().lower() == estado_actual:
+            raise ErrorNegocio("El proveedor ya se encuentra en ese estado")
