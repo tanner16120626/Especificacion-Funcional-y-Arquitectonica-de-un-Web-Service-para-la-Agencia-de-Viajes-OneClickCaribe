@@ -1,11 +1,15 @@
 """Router de Proveedores y catálogo."""
-from fastapi import APIRouter, Depends
+from datetime import date
+
+from fastapi import APIRouter, Depends, Query
 
 from api.dependencias import requiere_rol
 from api.respuesta import respuesta, respuesta_error
 from domain.errores import ErrorNegocio
 from domain.proveedor import CambioEstadoProveedor, ProveedorCreate
 from repository.proveedor_repository import proveedor_repository
+from repository.tarifa_repository import tarifa_repository
+from service.catalogo_service import ConsultarCatalogoService
 from service.proveedor_service import CambiarEstadoProveedorService, RegistrarProveedorService
 
 router = APIRouter(prefix="/api/v1", tags=["Proveedores y catálogo"])
@@ -17,6 +21,10 @@ def obtener_registrar_proveedor_service() -> RegistrarProveedorService:
 
 def obtener_cambiar_estado_proveedor_service() -> CambiarEstadoProveedorService:
     return CambiarEstadoProveedorService(proveedor_repository)
+
+
+def obtener_consultar_catalogo_service() -> ConsultarCatalogoService:
+    return ConsultarCatalogoService(tarifa_repository, proveedor_repository)
 
 
 def _ejemplo(descripcion: str, contenido: dict) -> dict:
@@ -92,3 +100,42 @@ def cambiar_estado_proveedor(
         return respuesta_error(error.mensaje, error.status_code, error.data)
     except Exception:
         return respuesta_error("No fue posible cambiar el estado del proveedor", 500)
+
+
+@router.get(
+    "/catalogo/servicios",
+    status_code=200,
+    summary="HU-007 Consultar servicios disponibles por destino",
+    description="Devuelve los servicios del destino de proveedores activos (RN-13), con su tarifa neta y su "
+                "disponibilidad en las fechas (RN-20). Es público: no requiere token. Las fechas usan el formato "
+                "AAAA-MM-DD y la fecha de fin no puede ser anterior a la de inicio.",
+    responses={
+        200: _ejemplo("Servicios consultados", {"success": True, "data": {
+            "destino": "Cancún", "fechaInicio": "2026-12-10", "fechaFin": "2026-12-15", "servicios": [
+                {"servicioId": "SRV-001", "tipoServicio": "tiquete_aereo", "proveedor": "Avianca S.A.",
+                 "tarifaNetaAdulto": 1980000, "tarifaNetaMenor": 1782000, "disponible": True},
+                {"servicioId": "SRV-002", "tipoServicio": "hospedaje", "proveedor": "PriceTravel Colombia S.A.S.",
+                 "tarifaNetaAdulto": 1450000, "tarifaNetaMenor": 725000, "disponible": True},
+                {"servicioId": "SRV-003", "tipoServicio": "traslado", "proveedor": "PriceTravel Colombia S.A.S.",
+                 "tarifaNetaAdulto": 210000, "tarifaNetaMenor": 105000, "disponible": True},
+                {"servicioId": "SRV-004", "tipoServicio": "asistencia_medica", "proveedor": "Assist1 Colombia S.A.S.",
+                 "tarifaNetaAdulto": 180000, "tarifaNetaMenor": 180000, "disponible": True}],
+            "fechaHoraConsulta": "2026-11-11T10:15:00-05:00"}, "message": "Servicios consultados exitosamente"}),
+        400: _ejemplo("Parámetros inválidos", {"success": False, "data": None, "message": "La fecha de fin no puede ser anterior a la fecha de inicio"}),
+        404: _ejemplo("Sin servicios para el destino", {"success": False, "data": None, "message": "No hay servicios disponibles para el destino"}),
+        500: _ejemplo("Error del repositorio", {"success": False, "data": None, "message": "No fue posible consultar los servicios"}),
+    },
+)
+def consultar_servicios_por_destino(
+    destino: str = Query(..., description="Ciudad de destino"),
+    fechaInicio: date = Query(..., description="Fecha de inicio del viaje (AAAA-MM-DD)"),
+    fechaFin: date = Query(..., description="Fecha de fin del viaje (AAAA-MM-DD)"),
+    servicio: ConsultarCatalogoService = Depends(obtener_consultar_catalogo_service),
+):
+    try:
+        catalogo = servicio.consultar(destino, fechaInicio, fechaFin)
+        return respuesta(data=catalogo, message="Servicios consultados exitosamente")
+    except ErrorNegocio as error:
+        return respuesta_error(error.mensaje, error.status_code, error.data)
+    except Exception:
+        return respuesta_error("No fue posible consultar los servicios", 500)
