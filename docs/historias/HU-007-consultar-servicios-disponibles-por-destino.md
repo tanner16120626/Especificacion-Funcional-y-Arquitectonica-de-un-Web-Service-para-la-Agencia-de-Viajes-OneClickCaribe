@@ -8,8 +8,8 @@ Que el sistema me muestre los servicios disponibles por destino y fechas, con su
 
 - El cliente realiza la consulta desde el portal web, que invoca el endpoint.
 - El sistema consume el endpoint /api/v1/catalogo/servicios de `proveedores.api` con el método GET.
-- La capa API valida el formato del JSON y delega el caso de uso a `ConsultarCatalogoService`.
-- El dominio considera solo proveedores activos (RN-13) y la tarifa vigente al momento de la consulta (RN-18).
+- La capa API valida los parámetros de consulta y delega el caso de uso a `ConsultarCatalogoService`.
+- El servicio considera solo proveedores activos (RN-13) y la tarifa vigente al momento de la consulta (RN-18).
 - Los servicios sin cupo en las fechas se marcan como no disponibles (RN-20).
 - Se reciben o consultan los campos:
 - destino / Ciudad de destino (parámetro de consulta)
@@ -21,20 +21,22 @@ Que el sistema me muestre los servicios disponibles por destino y fechas, con su
 
 ### 1. 🔍 Estructura y lógica del servicio
 
-- [ ] Se expone un endpoint GET que recibe destino, fechaInicio y fechaFin como parámetros de consulta.
-- [ ] Se valida que fechaFin no sea anterior a fechaInicio.
-- [ ] Solo se incluyen servicios de proveedores activos (RN-13), con la tarifa vigente al momento de la consulta (RN-18).
-- [ ] Los servicios sin cupo se devuelven con disponible = false (RN-20).
-- [ ] El catálogo es público: no requiere token, porque no expone datos personales.
+- [x] Se expone un endpoint GET que recibe destino, fechaInicio y fechaFin como parámetros de consulta.
+- [x] Se valida que fechaFin no sea anterior a fechaInicio.
+- [x] Solo se incluyen servicios de proveedores activos (RN-13), con la tarifa vigente al momento de la consulta (RN-18).
+- [x] Los servicios sin cupo se devuelven con disponible = false (RN-20).
+- [x] El catálogo es público: no requiere token, porque no expone datos personales.
+- [x] Los parámetros destino, fechaInicio y fechaFin son obligatorios; si falta uno o una fecha no tiene el formato AAAA-MM-DD, se responde 400 con los mensajes "El campo 'destino' es obligatorio" o "El campo 'fechaInicio' debe ser una fecha con formato AAAA-MM-DD", según el caso. Un destino vacío o con solo espacios también responde 400 con el mensaje "El campo 'destino' es obligatorio".
+- [x] Si no hay servicios de proveedores activos para el destino, se responde 404 con el mensaje "No hay servicios disponibles para el destino".
 
 
 ### 2. 📆 Estructura de la información
 
-- [ ] Se responde con la siguiente estructura en JSON:
+- [x] Se responde con la siguiente estructura en JSON (fechaHoraConsulta corresponde a la fecha y hora de la consulta):
 
 ```json
 {
-  "message": "Servicios consultados exitosamente",
+  "success": true,
   "data": {
     "destino": "Cancún",
     "fechaInicio": "2026-12-10",
@@ -43,7 +45,7 @@ Que el sistema me muestre los servicios disponibles por destino y fechas, con su
       {
         "servicioId": "SRV-001",
         "tipoServicio": "tiquete_aereo",
-        "proveedor": "Avianca",
+        "proveedor": "Avianca S.A.",
         "tarifaNetaAdulto": 1980000,
         "tarifaNetaMenor": 1782000,
         "disponible": true
@@ -51,7 +53,7 @@ Que el sistema me muestre los servicios disponibles por destino y fechas, con su
       {
         "servicioId": "SRV-002",
         "tipoServicio": "hospedaje",
-        "proveedor": "PriceTravel",
+        "proveedor": "PriceTravel Colombia S.A.S.",
         "tarifaNetaAdulto": 1450000,
         "tarifaNetaMenor": 725000,
         "disponible": true
@@ -59,7 +61,7 @@ Que el sistema me muestre los servicios disponibles por destino y fechas, con su
       {
         "servicioId": "SRV-003",
         "tipoServicio": "traslado",
-        "proveedor": "PriceTravel",
+        "proveedor": "PriceTravel Colombia S.A.S.",
         "tarifaNetaAdulto": 210000,
         "tarifaNetaMenor": 105000,
         "disponible": true
@@ -67,25 +69,25 @@ Que el sistema me muestre los servicios disponibles por destino y fechas, con su
       {
         "servicioId": "SRV-004",
         "tipoServicio": "asistencia_medica",
-        "proveedor": "Assist1",
+        "proveedor": "Assist1 Colombia S.A.S.",
         "tarifaNetaAdulto": 180000,
         "tarifaNetaMenor": 180000,
         "disponible": true
       }
     ],
-    "fechaHoraConsulta": "2026-11-05T10:15:00-05:00"
+    "fechaHoraConsulta": "2026-11-11T10:15:00-05:00"
   },
-  "success": true
+  "message": "Servicios consultados exitosamente"
 }
 ```
 
-- [ ] Si no hay servicios para el destino, el backend retorna:
+- [x] Si no hay servicios para el destino, el backend retorna:
 
 ```json
 {
-  "message": "No hay servicios disponibles para el destino",
+  "success": false,
   "data": null,
-  "success": false
+  "message": "No hay servicios disponibles para el destino"
 }
 ```
 
@@ -102,7 +104,7 @@ Que el sistema me muestre los servicios disponibles por destino y fechas, con su
 
 ```json
 {
-  "message": "Servicios consultados exitosamente",
+  "success": true,
   "data": {
     "destino": "Cancún",
     "fechaInicio": "2026-12-10",
@@ -111,7 +113,7 @@ Que el sistema me muestre los servicios disponibles por destino y fechas, con su
       {
         "servicioId": "SRV-001",
         "tipoServicio": "tiquete_aereo",
-        "proveedor": "Avianca",
+        "proveedor": "Avianca S.A.",
         "tarifaNetaAdulto": 1980000,
         "tarifaNetaMenor": 1782000,
         "disponible": true
@@ -119,7 +121,7 @@ Que el sistema me muestre los servicios disponibles por destino y fechas, con su
       {
         "servicioId": "SRV-002",
         "tipoServicio": "hospedaje",
-        "proveedor": "PriceTravel",
+        "proveedor": "PriceTravel Colombia S.A.S.",
         "tarifaNetaAdulto": 1450000,
         "tarifaNetaMenor": 725000,
         "disponible": true
@@ -127,7 +129,7 @@ Que el sistema me muestre los servicios disponibles por destino y fechas, con su
       {
         "servicioId": "SRV-003",
         "tipoServicio": "traslado",
-        "proveedor": "PriceTravel",
+        "proveedor": "PriceTravel Colombia S.A.S.",
         "tarifaNetaAdulto": 210000,
         "tarifaNetaMenor": 105000,
         "disponible": true
@@ -135,26 +137,26 @@ Que el sistema me muestre los servicios disponibles por destino y fechas, con su
       {
         "servicioId": "SRV-004",
         "tipoServicio": "asistencia_medica",
-        "proveedor": "Assist1",
+        "proveedor": "Assist1 Colombia S.A.S.",
         "tarifaNetaAdulto": 180000,
         "tarifaNetaMenor": 180000,
         "disponible": true
       }
     ],
-    "fechaHoraConsulta": "2026-11-05T10:15:00-05:00"
+    "fechaHoraConsulta": "2026-11-11T10:15:00-05:00"
   },
-  "success": true
+  "message": "Servicios consultados exitosamente"
 }
 
 ````
 
-- [ ] Si no hay servicios para el destino, el backend retorna:
+- [x] Si no hay servicios para el destino, el backend retorna:
 
 ```json
 {
-  "message": "No hay servicios disponibles para el destino",
+  "success": false,
   "data": null,
-  "success": false
+  "message": "No hay servicios disponibles para el destino"
 }
 ```
 
@@ -164,7 +166,7 @@ Que el sistema me muestre los servicios disponibles por destino y fechas, con su
 
 ### ✅ Caso 1: 
 
-- **Precondición:** El catálogo contiene servicios activos para Cancún.
+- **Precondición:** El catálogo contiene servicios de proveedores activos para Cancún (SRV-001 a SRV-004).
 - **Acción:** Ejecutar el endpoint GET /api/v1/catalogo/servicios?destino=Cancún&fechaInicio=2026-12-10&fechaFin=2026-12-15.
 - **Resultado esperado:**
 
@@ -188,13 +190,20 @@ Que el sistema me muestre los servicios disponibles por destino y fechas, con su
 - **Precondición:** Ejecución exitosa del endpoint.
 - **Resultado esperado:** La respuesta JSON debe contener exactamente los campos:
 
-  - "destino" (texto)
-  - "fechaInicio" (fecha ISO 8601)
-  - "fechaFin" (fecha ISO 8601)
-  - "servicios" (lista)
-  - "fechaHoraConsulta" (fecha ISO 8601)
-  - "message" (texto)
   - "success" (booleano)
+  - "data" (objeto), con los campos:
+    - "destino" (texto)
+    - "fechaInicio" (fecha ISO 8601)
+    - "fechaFin" (fecha ISO 8601)
+    - "servicios" (lista de objetos), cada uno con los campos:
+      - "servicioId" (texto)
+      - "tipoServicio" (texto)
+      - "proveedor" (texto)
+      - "tarifaNetaAdulto" (número)
+      - "tarifaNetaMenor" (número)
+      - "disponible" (booleano)
+    - "fechaHoraConsulta" (fecha ISO 8601)
+  - "message" (texto)
 
 ### ❌ Caso 4: 
 
@@ -221,20 +230,20 @@ Que el sistema me muestre los servicios disponibles por destino y fechas, con su
 
 ## 📦 Alcance Funcional
 
-- [ ] El endpoint devuelve los servicios activos del destino con su tarifa vigente.
-- [ ] Los servicios sin cupo se identifican como no disponibles.
-- [ ] La respuesta JSON cumple con el contrato definido.
+- [x] El endpoint devuelve los servicios activos del destino con su tarifa vigente.
+- [x] Los servicios sin cupo se identifican como no disponibles.
+- [x] La respuesta JSON cumple con el contrato definido.
 
 ## 🧪 Pruebas Completadas
 
-- [ ] Se ejecutaron pruebas unitarias para validar el filtro de proveedores activos, las fechas y la disponibilidad.
-- [ ] Se cubrieron los casos de error y de excepción.
-- [ ] Las pruebas funcionales están documentadas y pasadas.
+- [x] Se ejecutaron pruebas funcionales en Swagger para validar el filtro de proveedores activos, las fechas y la disponibilidad.
+- [x] Se cubrieron los casos de error y de excepción.
+- [x] Las pruebas funcionales están documentadas y pasadas.
 
 ## 📄 Documentación Técnica
 
-- [ ] Endpoint documentado en Swagger / OpenAPI.
-- [ ] Se describe:
+- [x] Endpoint documentado en Swagger / OpenAPI.
+- [x] Se describe:
 
   - Propósito del endpoint
   - Campos de entrada y salida
@@ -243,5 +252,5 @@ Que el sistema me muestre los servicios disponibles por destino y fechas, con su
 
 ## 🔐 Manejo de Errores
 
-- [ ] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
-- [ ] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.
+- [x] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
+- [x] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.
