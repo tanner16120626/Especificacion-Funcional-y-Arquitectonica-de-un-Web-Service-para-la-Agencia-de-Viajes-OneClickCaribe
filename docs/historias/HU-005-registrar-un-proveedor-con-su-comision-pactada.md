@@ -8,7 +8,7 @@ Que el sistema me permita registrar el proveedor con su NIT, razón social, tipo
 
 - La administradora diligencia el formulario del portal web, que envía la solicitud en JSON al endpoint.
 - El sistema consume el endpoint /api/v1/proveedores de `proveedores.api` con el método POST.
-- La capa API valida el formato del JSON y delega el caso de uso a `RegistrarProveedorService`.
+- La capa API valida el token de acceso de la administradora y el formato del JSON, y delega el caso de uso a `RegistrarProveedorService`.
 - El dominio valida que el porcentaje de comisión esté entre 0 y 100, y que las aerolíneas tengan comisión 0, porque el tiquete aéreo se vende al valor neto (RN-22).
 - El repositorio en memoria verifica que el NIT no esté registrado.
 - El proveedor queda activo; solo los proveedores activos se ofrecen en el portal (RN-13).
@@ -25,25 +25,25 @@ Que el sistema me permita registrar el proveedor con su NIT, razón social, tipo
 
 ### 1. 🔍 Estructura y lógica del servicio
 
-- [ ] Se expone un endpoint POST que recibe en el cuerpo JSON nit, razonSocial, tipoProveedor, porcentajeComision, servicios y destinos.
-- [ ] Se valida que porcentajeComision esté entre 0 y 100; para tipoProveedor `aerolinea` debe ser 0, porque el tiquete aéreo se vende al valor neto (RN-22).
-- [ ] Se valida que el NIT no esté registrado previamente.
-- [ ] El proveedor se crea en estado `activo` (RN-13).
-- [ ] El endpoint exige un token con rol `administradora`; un token de otro rol responde 403 y la ausencia de token, 401.
-- [ ] Los errores de formato del JSON (campos faltantes o tipos inválidos) se responden con código 400 y la estructura success, data y message.
+- [x] Se expone un endpoint POST que recibe en el cuerpo JSON nit, razonSocial, tipoProveedor, porcentajeComision, servicios y destinos.
+- [x] Se valida que porcentajeComision esté entre 0 y 100; para tipoProveedor `aerolinea` debe ser 0, porque el tiquete aéreo se vende al valor neto (RN-22).
+- [x] Se valida que el NIT no esté registrado previamente.
+- [x] El proveedor se crea en estado `activo` (RN-13).
+- [x] El endpoint exige un token con rol `administradora`. Sin token o con un token alterado responde 401 con "Token de acceso inválido o ausente"; con el token vencido, 401 con "La sesión expiró. Inicie sesión nuevamente"; con un token de otro rol, 403 con "No tiene permisos para realizar esta acción".
+- [x] Los errores de formato del JSON se responden con código 400 y la estructura success, data y message. Mensajes exactos: campos obligatorios, "El NIT es obligatorio", "La razón social es obligatoria", "El tipo de proveedor es obligatorio" y "La comisión pactada es obligatoria"; tipo inválido, "El tipo de proveedor debe ser aerolinea, mayorista, hotel, aseguradora o transporte"; servicios vacíos, "Debe informar al menos un servicio"; destinos vacíos, "Debe informar al menos un destino"; porcentajeComision enviado como texto, "El campo 'porcentajeComision' debe ser un número".
 
 
 ### 2. 📆 Estructura de la información
 
-- [ ] Se responde con la siguiente estructura en JSON:
+- [x] Se responde con la siguiente estructura en JSON (fechaRegistro corresponde a la fecha y hora del registro):
 
 ```json
 {
-  "message": "Proveedor registrado exitosamente",
+  "success": true,
   "data": {
-    "proveedorId": "PRV-0021",
+    "proveedorId": "PRV-0041",
     "nit": "900123456-7",
-    "razonSocial": "PriceTravel Colombia S.A.S.",
+    "razonSocial": "Caribe Travel Mayorista S.A.S.",
     "tipoProveedor": "mayorista",
     "porcentajeComision": 12,
     "servicios": [
@@ -55,22 +55,22 @@ Que el sistema me permita registrar el proveedor con su NIT, razón social, tipo
       "Ciudad de México"
     ],
     "estado": "activo",
-    "fechaRegistro": "2026-11-05T10:15:00-05:00"
+    "fechaRegistro": "2026-11-11T10:15:00-05:00"
   },
-  "success": true
+  "message": "Proveedor registrado exitosamente"
 }
 ```
 
-- [ ] Si el NIT ya está registrado, el backend retorna:
+- [x] Si el NIT ya está registrado, el backend retorna:
 
 ```json
 {
-  "message": "El proveedor ya se encuentra registrado",
+  "success": false,
   "data": {
-    "proveedorId": "PRV-0021",
+    "proveedorId": "PRV-0041",
     "nit": "900123456-7"
   },
-  "success": false
+  "message": "El proveedor ya se encuentra registrado"
 }
 ```
 
@@ -87,11 +87,11 @@ Que el sistema me permita registrar el proveedor con su NIT, razón social, tipo
 
 ```json
 {
-  "message": "Proveedor registrado exitosamente",
+  "success": true,
   "data": {
-    "proveedorId": "PRV-0021",
+    "proveedorId": "PRV-0041",
     "nit": "900123456-7",
-    "razonSocial": "PriceTravel Colombia S.A.S.",
+    "razonSocial": "Caribe Travel Mayorista S.A.S.",
     "tipoProveedor": "mayorista",
     "porcentajeComision": 12,
     "servicios": [
@@ -103,23 +103,23 @@ Que el sistema me permita registrar el proveedor con su NIT, razón social, tipo
       "Ciudad de México"
     ],
     "estado": "activo",
-    "fechaRegistro": "2026-11-05T10:15:00-05:00"
+    "fechaRegistro": "2026-11-11T10:15:00-05:00"
   },
-  "success": true
+  "message": "Proveedor registrado exitosamente"
 }
 
 ````
 
-- [ ] Si el NIT ya está registrado, el backend retorna:
+- [x] Si el NIT ya está registrado, el backend retorna:
 
 ```json
 {
-  "message": "El proveedor ya se encuentra registrado",
+  "success": false,
   "data": {
-    "proveedorId": "PRV-0021",
+    "proveedorId": "PRV-0041",
     "nit": "900123456-7"
   },
-  "success": false
+  "message": "El proveedor ya se encuentra registrado"
 }
 ```
 
@@ -129,13 +129,13 @@ Que el sistema me permita registrar el proveedor con su NIT, razón social, tipo
 
 ### ✅ Caso 1: 
 
-- **Precondición:** El repositorio no contiene un proveedor con el NIT 900123456-7.
+- **Precondición:** La administradora inició sesión con HU-002 y el repositorio no contiene un proveedor con el NIT 900123456-7.
 - **Acción:** Ejecutar el endpoint POST /api/v1/proveedores con tipo mayorista, comisión 12, servicios hospedaje y traslado, y destinos Cancún y Ciudad de México.
 - **Resultado esperado:**
 
   - Código HTTP 201 Created
   - Campo success = true
-  - Campo data.estado = "activo"
+  - Campo data.proveedorId = "PRV-0041" y data.estado = "activo"
   - Campo message contiene el texto: "Proveedor registrado exitosamente"
 
 ### ✅ Caso 2:
@@ -155,17 +155,18 @@ Que el sistema me permita registrar el proveedor con su NIT, razón social, tipo
 - **Precondición:** Ejecución exitosa del endpoint.
 - **Resultado esperado:** La respuesta JSON debe contener exactamente los campos:
 
-  - "proveedorId" (texto)
-  - "nit" (texto)
-  - "razonSocial" (texto)
-  - "tipoProveedor" (texto)
-  - "porcentajeComision" (número)
-  - "servicios" (lista)
-  - "destinos" (lista)
-  - "estado" (texto)
-  - "fechaRegistro" (fecha ISO 8601)
-  - "message" (texto)
   - "success" (booleano)
+  - "data" (objeto), con los campos:
+    - "proveedorId" (texto)
+    - "nit" (texto)
+    - "razonSocial" (texto)
+    - "tipoProveedor" (texto)
+    - "porcentajeComision" (número)
+    - "servicios" (lista de textos)
+    - "destinos" (lista de textos)
+    - "estado" (texto)
+    - "fechaRegistro" (fecha ISO 8601)
+  - "message" (texto)
 
 ### ❌ Caso 4: 
 
@@ -193,20 +194,20 @@ Que el sistema me permita registrar el proveedor con su NIT, razón social, tipo
 
 ## 📦 Alcance Funcional
 
-- [ ] El endpoint registra el proveedor con su comisión pactada.
-- [ ] Se impide registrar dos proveedores con el mismo NIT y aerolíneas con comisión.
-- [ ] La respuesta JSON cumple con el contrato definido.
+- [x] El endpoint registra el proveedor con su comisión pactada.
+- [x] Se impide registrar dos proveedores con el mismo NIT y aerolíneas con comisión.
+- [x] La respuesta JSON cumple con el contrato definido.
 
 ## 🧪 Pruebas Completadas
 
-- [ ] Se ejecutaron pruebas unitarias para validar la comisión pactada, la regla de aerolíneas y la duplicidad del NIT.
-- [ ] Se cubrieron los casos de error y de excepción.
-- [ ] Las pruebas funcionales están documentadas y pasadas.
+- [x] Se ejecutaron pruebas funcionales en Swagger para validar la comisión pactada, la regla de aerolíneas y la duplicidad del NIT.
+- [x] Se cubrieron los casos de error y de excepción.
+- [x] Las pruebas funcionales están documentadas y pasadas.
 
 ## 📄 Documentación Técnica
 
-- [ ] Endpoint documentado en Swagger / OpenAPI.
-- [ ] Se describe:
+- [x] Endpoint documentado en Swagger / OpenAPI.
+- [x] Se describe:
 
   - Propósito del endpoint
   - Campos de entrada y salida
@@ -215,5 +216,5 @@ Que el sistema me permita registrar el proveedor con su NIT, razón social, tipo
 
 ## 🔐 Manejo de Errores
 
-- [ ] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
-- [ ] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.
+- [x] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
+- [x] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.
