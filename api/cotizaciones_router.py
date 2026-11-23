@@ -9,13 +9,17 @@ from repository.cliente_repository import cliente_repository
 from repository.cotizacion_repository import cotizacion_repository
 from repository.proveedor_repository import proveedor_repository
 from repository.tarifa_repository import tarifa_repository
-from service.cotizacion_service import GenerarCotizacionService
+from service.cotizacion_service import ConsultarCotizacionService, GenerarCotizacionService
 
 router = APIRouter(prefix="/api/v1", tags=["Cotizaciones"])
 
 
 def obtener_generar_cotizacion_service() -> GenerarCotizacionService:
     return GenerarCotizacionService(cotizacion_repository, cliente_repository, proveedor_repository, tarifa_repository)
+
+
+def obtener_consultar_cotizacion_service() -> ConsultarCotizacionService:
+    return ConsultarCotizacionService(cotizacion_repository)
 
 
 def _ejemplo(descripcion: str, contenido: dict) -> dict:
@@ -74,3 +78,42 @@ def solicitar_cotizacion(
         return respuesta_error(error.mensaje, error.status_code, error.data)
     except Exception:
         return respuesta_error("No fue posible generar la cotización", 500)
+
+
+@router.get(
+    "/cotizaciones/{cotizacionId}",
+    status_code=200,
+    summary="HU-009 Consultar mi cotización",
+    description="Devuelve la cotización del cliente autenticado con su detalle, su vigencia y su estado actual. Si la "
+                "cotización está emitida y ya pasó vigenteHasta, se informa como vencida (RN-28) y el mensaje es "
+                "\"La cotización está vencida\". El cliente solo consulta sus propias cotizaciones. Solo para el rol cliente.",
+    responses={
+        200: _ejemplo("Cotización consultada. Si está vencida, el mensaje es \"La cotización está vencida\"",
+                      {"success": True, "data": {
+                          "cotizacionId": "COT-00046", "clienteId": "CLI-00188", "destino": "Cancún",
+                          "fechaInicio": "2026-12-10", "fechaFin": "2026-12-15", "cantidadPasajeros": 2,
+                          "pasajeros": [{"nombre": "María Fernanda Rojas Díaz", "edad": 32, "valor": 4040800},
+                                        {"nombre": "Andrés Felipe Rojas", "edad": 33, "valor": 4040800}],
+                          "detalle": _DETALLE_EJEMPLO, "valorPorPasajero": 4040800, "totalCotizacion": 8081600,
+                          "fechaEmision": "2026-11-11T10:15:00-05:00", "vigenteHasta": "2026-11-11T23:59:59-05:00",
+                          "estado": "emitida"}, "message": "Cotización consultada exitosamente"}),
+        401: _ejemplo("Token vencido, inválido o ausente", {"success": False, "data": None, "message": "Token de acceso inválido o ausente"}),
+        403: _ejemplo("La cotización es de otro cliente o la cuenta no tiene rol cliente",
+                      {"success": False, "data": None, "message": "No tiene permisos para realizar esta acción"}),
+        404: _ejemplo("Cotización no encontrada", {"success": False, "data": None, "message": "La cotización no existe"}),
+        500: _ejemplo("Error del repositorio", {"success": False, "data": None, "message": "No fue posible consultar la cotización"}),
+    },
+)
+def consultar_mi_cotizacion(
+    cotizacionId: str,
+    usuario: dict = Depends(requiere_rol("cliente")),
+    servicio: ConsultarCotizacionService = Depends(obtener_consultar_cotizacion_service),
+):
+    try:
+        cotizacion = servicio.consultar(usuario.get("clienteId"), cotizacionId)
+        mensaje = "La cotización está vencida" if cotizacion["estado"] == "vencida" else "Cotización consultada exitosamente"
+        return respuesta(data=cotizacion, message=mensaje)
+    except ErrorNegocio as error:
+        return respuesta_error(error.mensaje, error.status_code, error.data)
+    except Exception:
+        return respuesta_error("No fue posible consultar la cotización", 500)

@@ -1,4 +1,6 @@
 """Repositorio en memoria de cotizaciones."""
+from typing import Optional
+
 from repository.datos_iniciales import COTIZACIONES, copia
 
 
@@ -14,6 +16,14 @@ class CotizacionRepository:
 
     def guardar(self, cotizacion: dict) -> dict:
         self._cotizaciones.append(cotizacion)
+        return cotizacion
+
+    def buscar_por_id(self, cotizacion_id: str) -> Optional[dict]:
+        return next((c for c in self._cotizaciones if c["cotizacionId"] == cotizacion_id), None)
+
+    def actualizar_estado(self, cotizacion_id: str, estado: str) -> dict:
+        cotizacion = self.buscar_por_id(cotizacion_id)
+        cotizacion["estado"] = estado
         return cotizacion
 
 

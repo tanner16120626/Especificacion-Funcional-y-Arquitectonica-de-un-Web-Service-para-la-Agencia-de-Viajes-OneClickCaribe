@@ -66,9 +66,14 @@ _DETALLE_CANCUN = [
 _PASAJEROS = [{"nombre": "María Fernanda Rojas Díaz", "edad": 32}, {"nombre": "Andrés Felipe Rojas", "edad": 33}]
 
 
+def _pasajeros(valor):
+    """Pasajeros adultos de las cotizaciones precargadas, con el valor de cada uno."""
+    return [{**p, "valor": valor} for p in deepcopy(_PASAJEROS)]
+
+
 def _cotizacion(cotizacion_id, estado, emision, vigencia):
     return {"cotizacionId": cotizacion_id, "clienteId": "CLI-00188", "destino": "Cancún",
-            "fechaInicio": "2026-12-10", "fechaFin": "2026-12-15", "pasajeros": deepcopy(_PASAJEROS),
+            "fechaInicio": "2026-12-10", "fechaFin": "2026-12-15", "pasajeros": _pasajeros(4040800),
             "tipoAcomodacion": "doble", "detalle": deepcopy(_DETALLE_CANCUN), "cantidadPasajeros": 2,
             "valorPorPasajero": 4040800, "totalCotizacion": 8081600, "comisionTotal": 441600,
             "fechaEmision": emision, "vigenteHasta": vigencia, "estado": estado,
@@ -81,7 +86,8 @@ COTIZACIONES = [
     _cotizacion("COT-00045", "aceptada", _HOY, _FIN_DEL_DIA.isoformat()),
     _cotizacion("COT-00046", "emitida", _HOY, _FIN_DEL_DIA.isoformat()),
     {**_cotizacion("COT-00031", "vencida", "2026-10-21T09:40:00-05:00", "2026-10-21T23:59:59-05:00"),
-     "destino": "Cartagena", "detalle": [], "valorPorPasajero": 1575000, "totalCotizacion": 3150000, "comisionTotal": 0},
+     "destino": "Cartagena", "pasajeros": _pasajeros(1575000), "detalle": [], "valorPorPasajero": 1575000,
+     "totalCotizacion": 3150000, "comisionTotal": 0},
 ]
 
 
