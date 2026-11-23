@@ -23,3 +23,9 @@ class NoEncontradoError(ErrorNegocio):
     """El recurso solicitado no existe. Se responde con código 404."""
 
     status_code = 404
+
+
+class PermisoDenegadoError(ErrorNegocio):
+    """El recurso pertenece a otro usuario. Se responde con código 403."""
+
+    status_code = 403
