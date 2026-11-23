@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 from domain.catalogo import Catalogo
 from domain.cotizacion import Cotizacion, CotizacionCreate
-from domain.errores import ConflictoError, NoEncontradoError
+from domain.errores import ConflictoError, NoEncontradoError, PermisoDenegadoError
 from repository.cliente_repository import ClienteRepository
 from repository.cotizacion_repository import CotizacionRepository
 from repository.proveedor_repository import ProveedorRepository
@@ -61,7 +61,7 @@ class GenerarCotizacionService:
             "destino": ofertas[0][0]["destino"],
             "fechaInicio": datos.fechaInicio.isoformat(),
             "fechaFin": datos.fechaFin.isoformat(),
-            "pasajeros": [{"nombre": p.nombre.strip(), "edad": p.edad} for p in datos.pasajeros],
+            "pasajeros": calculo["pasajeros"],
             "tipoAcomodacion": datos.tipoAcomodacion.strip() if datos.tipoAcomodacion else None,
             "detalle": calculo["detalle"],
             "cantidadPasajeros": len(datos.pasajeros),
@@ -75,19 +75,23 @@ class GenerarCotizacionService:
             "motivo": None,
         }
         self._cotizaciones.guardar(cotizacion)
-        return {
-            "cotizacionId": cotizacion["cotizacionId"],
-            "clienteId": cotizacion["clienteId"],
-            "destino": cotizacion["destino"],
-            "fechaInicio": cotizacion["fechaInicio"],
-            "fechaFin": cotizacion["fechaFin"],
-            "cantidadPasajeros": cotizacion["cantidadPasajeros"],
-            "pasajeros": calculo["pasajeros"],
-            "detalle": [{clave: d[clave] for clave in ("tipoServicio", "proveedor", "tarifaNeta", "porcentajeComision",
-                                                       "precioVentaPorPasajero")} for d in calculo["detalle"]],
-            "valorPorPasajero": cotizacion["valorPorPasajero"],
-            "totalCotizacion": cotizacion["totalCotizacion"],
-            "fechaEmision": cotizacion["fechaEmision"],
-            "vigenteHasta": cotizacion["vigenteHasta"],
-            "estado": cotizacion["estado"],
-        }
+        return Cotizacion.presentar(cotizacion)
+
+
+class ConsultarCotizacionService:
+    """Caso de uso de la consulta de una cotización por el cliente."""
+
+    def __init__(self, cotizaciones: CotizacionRepository):
+        self._cotizaciones = cotizaciones
+
+    def consultar(self, cliente_id: str, cotizacion_id: str) -> dict:
+        """HU-009: devuelve la cotización del cliente con su estado actual (RN-28)."""
+        cotizacion = self._cotizaciones.buscar_por_id(cotizacion_id)
+        if cotizacion is None:
+            raise NoEncontradoError("La cotización no existe")
+        if cotizacion["clienteId"] != cliente_id:
+            raise PermisoDenegadoError("No tiene permisos para realizar esta acción")
+        estado = Cotizacion.estado_actual(cotizacion, datetime.now(ZONA_COLOMBIA))
+        if estado != cotizacion["estado"]:
+            cotizacion = self._cotizaciones.actualizar_estado(cotizacion_id, estado)
+        return Cotizacion.presentar(cotizacion)

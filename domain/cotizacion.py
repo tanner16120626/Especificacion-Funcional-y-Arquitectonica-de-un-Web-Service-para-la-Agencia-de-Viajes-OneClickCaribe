@@ -1,5 +1,5 @@
-"""Dominio de cotizaciones: esquema de la solicitud, validaciones y cálculo del precio de venta."""
-from datetime import date
+"""Dominio de cotizaciones: esquema de la solicitud, validaciones, cálculo del precio y vigencia."""
+from datetime import date, datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
@@ -135,4 +135,31 @@ class Cotizacion:
             "valorPorPasajero": valor_adulto if viaja_adulto else valor_menor,
             "totalCotizacion": sum(p["valor"] for p in valores),
             "comisionTotal": comision_total,
+        }
+
+    @staticmethod
+    def estado_actual(cotizacion: dict, ahora: datetime) -> str:
+        """RN-28: una cotización emitida cuya vigencia ya pasó se informa como vencida."""
+        if cotizacion["estado"] == "emitida" and ahora > datetime.fromisoformat(cotizacion["vigenteHasta"]):
+            return "vencida"
+        return cotizacion["estado"]
+
+    @staticmethod
+    def presentar(cotizacion: dict) -> dict:
+        """Datos de la cotización que devuelve la API, sin los campos internos."""
+        return {
+            "cotizacionId": cotizacion["cotizacionId"],
+            "clienteId": cotizacion["clienteId"],
+            "destino": cotizacion["destino"],
+            "fechaInicio": cotizacion["fechaInicio"],
+            "fechaFin": cotizacion["fechaFin"],
+            "cantidadPasajeros": cotizacion["cantidadPasajeros"],
+            "pasajeros": [{"nombre": p["nombre"], "edad": p["edad"], "valor": p["valor"]} for p in cotizacion["pasajeros"]],
+            "detalle": [{clave: d[clave] for clave in ("tipoServicio", "proveedor", "tarifaNeta", "porcentajeComision",
+                                                       "precioVentaPorPasajero")} for d in cotizacion["detalle"]],
+            "valorPorPasajero": cotizacion["valorPorPasajero"],
+            "totalCotizacion": cotizacion["totalCotizacion"],
+            "fechaEmision": cotizacion["fechaEmision"],
+            "vigenteHasta": cotizacion["vigenteHasta"],
+            "estado": cotizacion["estado"],
         }
