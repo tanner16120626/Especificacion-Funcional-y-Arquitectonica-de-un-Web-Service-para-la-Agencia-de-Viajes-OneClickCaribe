@@ -3,13 +3,13 @@ from fastapi import APIRouter, Depends
 
 from api.dependencias import requiere_rol
 from api.respuesta import respuesta, respuesta_error
-from domain.cotizacion import CotizacionCreate
+from domain.cotizacion import CotizacionCreate, RespuestaCotizacion
 from domain.errores import ErrorNegocio
 from repository.cliente_repository import cliente_repository
 from repository.cotizacion_repository import cotizacion_repository
 from repository.proveedor_repository import proveedor_repository
 from repository.tarifa_repository import tarifa_repository
-from service.cotizacion_service import ConsultarCotizacionService, GenerarCotizacionService
+from service.cotizacion_service import ConsultarCotizacionService, GenerarCotizacionService, ResponderCotizacionService
 
 router = APIRouter(prefix="/api/v1", tags=["Cotizaciones"])
 
@@ -20,6 +20,10 @@ def obtener_generar_cotizacion_service() -> GenerarCotizacionService:
 
 def obtener_consultar_cotizacion_service() -> ConsultarCotizacionService:
     return ConsultarCotizacionService(cotizacion_repository)
+
+
+def obtener_responder_cotizacion_service() -> ResponderCotizacionService:
+    return ResponderCotizacionService(cotizacion_repository)
 
 
 def _ejemplo(descripcion: str, contenido: dict) -> dict:
@@ -117,3 +121,39 @@ def consultar_mi_cotizacion(
         return respuesta_error(error.mensaje, error.status_code, error.data)
     except Exception:
         return respuesta_error("No fue posible consultar la cotización", 500)
+
+
+@router.post(
+    "/cotizaciones/{cotizacionId}/respuesta",
+    status_code=200,
+    summary="HU-010 Responder a mi cotización",
+    description="Registra la aceptación o el rechazo de la cotización del cliente autenticado. Solo se responde una "
+                "cotización emitida y vigente (RN-26, RN-28); si ya pasó vigenteHasta se informa como vencida. Si el "
+                "cliente la rechaza, el motivo es obligatorio (RN-30). El cliente solo responde sus propias "
+                "cotizaciones. Solo para el rol cliente.",
+    responses={
+        200: _ejemplo("Respuesta registrada", {"success": True, "data": {
+            "cotizacionId": "COT-00047", "respuesta": "aceptada", "motivo": None, "estado": "aceptada",
+            "fechaRespuesta": "2026-11-11T10:20:00-05:00"}, "message": "Respuesta registrada exitosamente"}),
+        400: _ejemplo("Datos inválidos, cotización vencida o ya respondida",
+                      {"success": False, "data": None, "message": "La cotización está vencida y no puede responderse"}),
+        401: _ejemplo("Token vencido, inválido o ausente", {"success": False, "data": None, "message": "Token de acceso inválido o ausente"}),
+        403: _ejemplo("La cotización es de otro cliente o la cuenta no tiene rol cliente",
+                      {"success": False, "data": None, "message": "No tiene permisos para realizar esta acción"}),
+        404: _ejemplo("Cotización no encontrada", {"success": False, "data": None, "message": "La cotización no existe"}),
+        500: _ejemplo("Error del repositorio", {"success": False, "data": None, "message": "No fue posible registrar la respuesta"}),
+    },
+)
+def responder_mi_cotizacion(
+    cotizacionId: str,
+    datos: RespuestaCotizacion,
+    usuario: dict = Depends(requiere_rol("cliente")),
+    servicio: ResponderCotizacionService = Depends(obtener_responder_cotizacion_service),
+):
+    try:
+        respuesta_cotizacion = servicio.responder(usuario.get("clienteId"), cotizacionId, datos)
+        return respuesta(data=respuesta_cotizacion, message="Respuesta registrada exitosamente")
+    except ErrorNegocio as error:
+        return respuesta_error(error.mensaje, error.status_code, error.data)
+    except Exception:
+        return respuesta_error("No fue posible registrar la respuesta", 500)

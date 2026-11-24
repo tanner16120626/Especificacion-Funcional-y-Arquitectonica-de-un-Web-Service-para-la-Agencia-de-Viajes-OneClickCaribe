@@ -7,8 +7,18 @@ from pydantic import BaseModel, ConfigDict
 from domain.errores import ErrorNegocio
 
 SERVICIOS_COTIZABLES = ("tiquete_aereo", "hospedaje", "traslado", "asistencia_medica")
+RESPUESTAS_COTIZACION = ("aceptada", "rechazada")
 EDAD_MAXIMA = 120
 EDAD_MAYORIA = 18
+
+
+class RespuestaCotizacion(BaseModel):
+    """Respuesta del cliente a su cotización. El motivo es obligatorio si la rechaza (RN-30)."""
+
+    respuesta: Optional[str] = None
+    motivo: Optional[str] = None
+
+    model_config = ConfigDict(json_schema_extra={"example": {"respuesta": "aceptada", "motivo": None}})
 
 
 class PasajeroCotizacion(BaseModel):
@@ -163,3 +173,22 @@ class Cotizacion:
             "vigenteHasta": cotizacion["vigenteHasta"],
             "estado": cotizacion["estado"],
         }
+
+    @staticmethod
+    def validar_respuesta(datos: RespuestaCotizacion) -> None:
+        """La respuesta debe ser aceptada o rechazada; si rechaza, el motivo es obligatorio (RN-30)."""
+        if _vacio(datos.respuesta):
+            raise ErrorNegocio("La respuesta es obligatoria")
+        respuesta = datos.respuesta.strip().lower()
+        if respuesta not in RESPUESTAS_COTIZACION:
+            raise ErrorNegocio("La respuesta debe ser aceptada o rechazada")
+        if respuesta == "rechazada" and _vacio(datos.motivo):
+            raise ErrorNegocio("El motivo del rechazo es obligatorio")
+
+    @staticmethod
+    def validar_respondible(estado_actual: str) -> None:
+        """Solo se responde una cotización emitida y vigente (RN-26, RN-28)."""
+        if estado_actual == "vencida":
+            raise ErrorNegocio("La cotización está vencida y no puede responderse")
+        if estado_actual != "emitida":
+            raise ErrorNegocio("La cotización ya fue respondida")

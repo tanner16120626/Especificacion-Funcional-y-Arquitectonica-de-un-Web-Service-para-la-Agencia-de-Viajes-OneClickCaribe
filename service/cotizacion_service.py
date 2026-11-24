@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta, timezone
 
 from domain.catalogo import Catalogo
-from domain.cotizacion import Cotizacion, CotizacionCreate
+from domain.cotizacion import Cotizacion, CotizacionCreate, RespuestaCotizacion
 from domain.errores import ConflictoError, NoEncontradoError, PermisoDenegadoError
 from repository.cliente_repository import ClienteRepository
 from repository.cotizacion_repository import CotizacionRepository
@@ -95,3 +95,34 @@ class ConsultarCotizacionService:
         if estado != cotizacion["estado"]:
             cotizacion = self._cotizaciones.actualizar_estado(cotizacion_id, estado)
         return Cotizacion.presentar(cotizacion)
+
+
+class ResponderCotizacionService:
+    """Caso de uso de la respuesta del cliente a su cotización."""
+
+    def __init__(self, cotizaciones: CotizacionRepository):
+        self._cotizaciones = cotizaciones
+
+    def responder(self, cliente_id: str, cotizacion_id: str, datos: RespuestaCotizacion) -> dict:
+        """HU-010: registra la aceptación o el rechazo de una cotización emitida y vigente (RN-26, RN-28, RN-30)."""
+        Cotizacion.validar_respuesta(datos)
+        cotizacion = self._cotizaciones.buscar_por_id(cotizacion_id)
+        if cotizacion is None:
+            raise NoEncontradoError("La cotización no existe")
+        if cotizacion["clienteId"] != cliente_id:
+            raise PermisoDenegadoError("No tiene permisos para realizar esta acción")
+        ahora = datetime.now(ZONA_COLOMBIA).replace(microsecond=0)
+        estado = Cotizacion.estado_actual(cotizacion, ahora)
+        if estado != cotizacion["estado"]:
+            self._cotizaciones.actualizar_estado(cotizacion_id, estado)
+        Cotizacion.validar_respondible(estado)
+        respuesta = datos.respuesta.strip().lower()
+        motivo = datos.motivo.strip() if respuesta == "rechazada" else None
+        respondida = self._cotizaciones.registrar_respuesta(cotizacion_id, respuesta, motivo, ahora.isoformat())
+        return {
+            "cotizacionId": respondida["cotizacionId"],
+            "respuesta": respondida["respuesta"],
+            "motivo": respondida["motivo"],
+            "estado": respondida["estado"],
+            "fechaRespuesta": respondida["fechaRespuesta"],
+        }
