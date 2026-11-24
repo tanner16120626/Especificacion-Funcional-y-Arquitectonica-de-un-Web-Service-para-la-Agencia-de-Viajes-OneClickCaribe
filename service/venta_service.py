@@ -1,10 +1,12 @@
-"""Servicio de ventas: genera la orden de venta a partir de una cotización aceptada."""
+"""Servicio de ventas: genera la orden de venta y consulta el estado de la compra."""
 from copy import deepcopy
 from datetime import date, datetime, timedelta, timezone
 
 from domain.errores import ConflictoError, NoEncontradoError, PermisoDenegadoError
 from domain.venta import OrdenVentaCreate, Venta
 from repository.cotizacion_repository import CotizacionRepository
+from repository.factura_repository import FacturaRepository
+from repository.reserva_repository import ReservaRepository
 from repository.venta_repository import VentaRepository
 
 ZONA_COLOMBIA = timezone(timedelta(hours=-5))
@@ -49,3 +51,22 @@ class GenerarOrdenVentaService:
             "fechaCreacion": ahora.isoformat(),
         }
         return Venta.presentar(self._ventas.guardar(venta))
+
+
+class ConsultarOrdenService:
+    """Caso de uso de la consulta del estado de la compra."""
+
+    def __init__(self, ventas: VentaRepository, reservas: ReservaRepository, facturas: FacturaRepository):
+        self._ventas = ventas
+        self._reservas = reservas
+        self._facturas = facturas
+
+    def consultar(self, cliente_id: str, venta_id: str) -> dict:
+        """HU-012: total pagado, saldo, estado y si la reserva y la factura ya fueron generadas (RN-45)."""
+        venta = self._ventas.buscar_por_id(venta_id)
+        if venta is None:
+            raise NoEncontradoError("La orden de venta no existe")
+        if venta["clienteId"] != cliente_id:
+            raise PermisoDenegadoError("No tiene permisos para realizar esta acción")
+        return Venta.presentar_estado(venta, self._reservas.buscar_por_venta(venta_id),
+                                      self._facturas.buscar_por_venta(venta_id))

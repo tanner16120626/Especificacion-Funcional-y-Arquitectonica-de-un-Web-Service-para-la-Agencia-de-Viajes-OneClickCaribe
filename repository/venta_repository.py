@@ -10,6 +10,9 @@ class VentaRepository:
     def __init__(self):
         self._ventas = copia(VENTAS)
 
+    def buscar_por_id(self, venta_id: str) -> Optional[dict]:
+        return next((v for v in self._ventas if v["ventaId"] == venta_id), None)
+
     def buscar_por_cotizacion(self, cotizacion_id: str) -> Optional[dict]:
         return next((v for v in self._ventas if v["cotizacionId"] == cotizacion_id), None)
 
