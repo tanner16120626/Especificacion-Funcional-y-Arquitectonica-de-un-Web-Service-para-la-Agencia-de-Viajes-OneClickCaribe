@@ -26,5 +26,14 @@ class CotizacionRepository:
         cotizacion["estado"] = estado
         return cotizacion
 
+    def registrar_respuesta(self, cotizacion_id: str, respuesta: str, motivo: Optional[str], fecha_respuesta: str) -> dict:
+        """Guarda la respuesta del cliente; el estado de la cotización pasa a ser la respuesta."""
+        cotizacion = self.buscar_por_id(cotizacion_id)
+        cotizacion["respuesta"] = respuesta
+        cotizacion["motivo"] = motivo
+        cotizacion["estado"] = respuesta
+        cotizacion["fechaRespuesta"] = fecha_respuesta
+        return cotizacion
+
 
 cotizacion_repository = CotizacionRepository()
