@@ -8,8 +8,8 @@ Que el sistema me muestre el estado completo de mi compra en una sola consulta.
 
 - El cliente realiza la consulta desde el portal web, que invoca el endpoint.
 - El sistema consume el endpoint /api/v1/ventas/{ventaId} de `ventas.api` con el método GET.
-- La capa API valida el formato del JSON y delega el caso de uso a `ConsultarOrdenService`.
-- El repositorio en memoria busca la orden por su identificador.
+- La capa API valida el token de acceso del cliente y delega el caso de uso a `ConsultarOrdenService`.
+- El repositorio en memoria busca la orden por su identificador y el servicio verifica que pertenezca al cliente del token.
 - El servicio reúne el total pagado, el saldo y si la reserva y la factura ya fueron generadas.
 - Se reciben o consultan los campos:
 - ventaId / Identificador de la orden (parámetro de ruta)
@@ -19,39 +19,41 @@ Que el sistema me muestre el estado completo de mi compra en una sola consulta.
 
 ### 1. 🔍 Estructura y lógica del servicio
 
-- [ ] Se expone un endpoint GET que recibe el ventaId como parámetro de ruta.
-- [ ] Se informa el estado de la orden: `pendiente_pago`, `pago_parcial` o `pagada`; el total pagado solo incluye pagos aprobados por la pasarela (RN-45).
-- [ ] Se informa si la reserva está confirmada y si la factura está generada.
-- [ ] El endpoint exige el token de acceso en el encabezado `Authorization: Bearer`; sin token, o con el token vencido, responde 401.
-- [ ] El cliente solo accede a sus propios recursos; si el recurso pertenece a otro cliente, responde 403.
+- [x] Se expone un endpoint GET que recibe el ventaId como parámetro de ruta.
+- [x] Se informa el estado de la orden: `pendiente_pago`, `pago_parcial` o `pagada`; el total pagado solo incluye pagos aprobados por la pasarela (RN-45).
+- [x] Se informa si la reserva está confirmada y si la factura está generada.
+- [x] El endpoint exige el token de acceso en el encabezado `Authorization: Bearer`. Sin token o con un token alterado responde 401 con "Token de acceso inválido o ausente"; con el token vencido responde 401 con "La sesión expiró. Inicie sesión nuevamente".
+- [x] El cliente solo consulta sus propias órdenes; si la orden pertenece a otro cliente, o la cuenta no tiene rol cliente, responde 403 con el mensaje "No tiene permisos para realizar esta acción".
+- [x] Si la orden no existe, se responde 404 con el mensaje "La orden de venta no existe".
+- [x] Una orden generada con HU-011 se puede consultar en la misma sesión.
 
 
 ### 2. 📆 Estructura de la información
 
-- [ ] Se responde con la siguiente estructura en JSON:
+- [x] Se responde con la siguiente estructura en JSON (VEN-00012 se muestra como queda al iniciar el servicio, sin abonos; cuando se registra un pago aprobado con HU-013, totalPagado y saldoPendiente cambian y el estado pasa a `pago_parcial` o `pagada`):
 
 ```json
 {
-  "message": "Orden consultada exitosamente",
+  "success": true,
   "data": {
     "ventaId": "VEN-00012",
     "clienteId": "CLI-00188",
     "valorTotal": 8081600,
-    "totalPagado": 5000000,
-    "saldoPendiente": 3081600,
-    "estado": "pago_parcial",
+    "totalPagado": 0,
+    "saldoPendiente": 8081600,
+    "estado": "pendiente_pago",
     "reservaConfirmada": false,
     "facturaGenerada": false
   },
-  "success": true
+  "message": "Orden consultada exitosamente"
 }
 ```
 
-- [ ] Si la orden ya está pagada, el backend retorna:
+- [x] Si la orden ya está pagada, el backend retorna:
 
 ```json
 {
-  "message": "Orden consultada exitosamente",
+  "success": true,
   "data": {
     "ventaId": "VEN-00010",
     "clienteId": "CLI-00188",
@@ -62,7 +64,7 @@ Que el sistema me muestre el estado completo de mi compra en una sola consulta.
     "reservaConfirmada": true,
     "facturaGenerada": true
   },
-  "success": true
+  "message": "Orden consultada exitosamente"
 }
 ```
 
@@ -79,27 +81,27 @@ Que el sistema me muestre el estado completo de mi compra en una sola consulta.
 
 ```json
 {
-  "message": "Orden consultada exitosamente",
+  "success": true,
   "data": {
     "ventaId": "VEN-00012",
     "clienteId": "CLI-00188",
     "valorTotal": 8081600,
-    "totalPagado": 5000000,
-    "saldoPendiente": 3081600,
-    "estado": "pago_parcial",
+    "totalPagado": 0,
+    "saldoPendiente": 8081600,
+    "estado": "pendiente_pago",
     "reservaConfirmada": false,
     "facturaGenerada": false
   },
-  "success": true
+  "message": "Orden consultada exitosamente"
 }
 
 ````
 
-- [ ] Si la orden ya está pagada, el backend retorna:
+- [x] Si la orden ya está pagada, el backend retorna:
 
 ```json
 {
-  "message": "Orden consultada exitosamente",
+  "success": true,
   "data": {
     "ventaId": "VEN-00010",
     "clienteId": "CLI-00188",
@@ -110,7 +112,7 @@ Que el sistema me muestre el estado completo de mi compra en una sola consulta.
     "reservaConfirmada": true,
     "facturaGenerada": true
   },
-  "success": true
+  "message": "Orden consultada exitosamente"
 }
 ```
 
@@ -120,40 +122,42 @@ Que el sistema me muestre el estado completo de mi compra en una sola consulta.
 
 ### ✅ Caso 1: 
 
-- **Precondición:** La orden VEN-00012 tiene un abono de 5.000.000.
-- **Acción:** Ejecutar el endpoint GET /api/v1/ventas/VEN-00012.
+- **Precondición:** La cliente CLI-00188 (registrada con HU-001) inició sesión con HU-002 y su orden precargada VEN-00012 está pendiente de pago, sin abonos.
+- **Acción:** Ejecutar el endpoint GET /api/v1/ventas/VEN-00012 con su token.
 - **Resultado esperado:**
 
   - Código HTTP 200 OK
   - Campo success = true
-  - Campo data.estado = "pago_parcial" y data.saldoPendiente = 3081600
+  - Campo data.estado = "pendiente_pago", data.totalPagado = 0 y data.saldoPendiente = 8081600
   - Campo message contiene el texto: "Orden consultada exitosamente"
 
 ### ✅ Caso 2:
 
-- **Precondición:** La orden VEN-00010 está pagada en su totalidad.
-- **Acción:** Ejecutar el endpoint GET /api/v1/ventas/VEN-00010.
+- **Precondición:** La orden precargada VEN-00010 de la cliente CLI-00188 está pagada en su totalidad, con su reserva RES-00008 confirmada y su factura FAC-00006 emitida.
+- **Acción:** Ejecutar el endpoint GET /api/v1/ventas/VEN-00010 con el token de la cliente.
 - **Resultado esperado:**
 
   - Código HTTP 200 OK
-  - Campo data.estado = "pagada"
+  - Campo data.estado = "pagada" y data.saldoPendiente = 0
   - Campo data.reservaConfirmada = true y data.facturaGenerada = true
+  - Campo message contiene el texto: "Orden consultada exitosamente"
 
 ### ✅ Caso 3: 
 
 - **Precondición:** Ejecución exitosa del endpoint.
 - **Resultado esperado:** La respuesta JSON debe contener exactamente los campos:
 
-  - "ventaId" (texto)
-  - "clienteId" (texto)
-  - "valorTotal" (número)
-  - "totalPagado" (número)
-  - "saldoPendiente" (número)
-  - "estado" (texto)
-  - "reservaConfirmada" (booleano)
-  - "facturaGenerada" (booleano)
-  - "message" (texto)
   - "success" (booleano)
+  - "data" (objeto), con los campos:
+    - "ventaId" (texto)
+    - "clienteId" (texto)
+    - "valorTotal" (número)
+    - "totalPagado" (número)
+    - "saldoPendiente" (número)
+    - "estado" (texto)
+    - "reservaConfirmada" (booleano)
+    - "facturaGenerada" (booleano)
+  - "message" (texto)
 
 ### ❌ Caso 4: 
 
@@ -180,20 +184,20 @@ Que el sistema me muestre el estado completo de mi compra en una sola consulta.
 
 ## 📦 Alcance Funcional
 
-- [ ] El endpoint devuelve el estado completo de la orden.
-- [ ] El saldo pendiente se calcula con los pagos registrados.
-- [ ] La respuesta JSON cumple con el contrato definido.
+- [x] El endpoint devuelve el estado completo de la orden.
+- [x] El saldo pendiente refleja los pagos aprobados registrados en la orden.
+- [x] La respuesta JSON cumple con el contrato definido.
 
 ## 🧪 Pruebas Completadas
 
-- [ ] Se ejecutaron pruebas unitarias para validar el cálculo del saldo y el estado de la orden.
-- [ ] Se cubrieron los casos de error y de excepción.
-- [ ] Las pruebas funcionales están documentadas y pasadas.
+- [x] Se ejecutaron pruebas funcionales en Swagger para validar el cálculo del saldo y el estado de la orden.
+- [x] Se cubrieron los casos de error y de excepción.
+- [x] Las pruebas funcionales están documentadas y pasadas.
 
 ## 📄 Documentación Técnica
 
-- [ ] Endpoint documentado en Swagger / OpenAPI.
-- [ ] Se describe:
+- [x] Endpoint documentado en Swagger / OpenAPI.
+- [x] Se describe:
 
   - Propósito del endpoint
   - Campos de entrada y salida
@@ -202,5 +206,5 @@ Que el sistema me muestre el estado completo de mi compra en una sola consulta.
 
 ## 🔐 Manejo de Errores
 
-- [ ] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
-- [ ] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.
+- [x] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
+- [x] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.
