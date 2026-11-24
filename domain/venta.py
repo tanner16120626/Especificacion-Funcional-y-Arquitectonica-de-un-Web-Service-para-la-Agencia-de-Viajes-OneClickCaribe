@@ -57,6 +57,20 @@ class Venta:
             raise ErrorNegocio("La fecha límite del saldo debe ser anterior a la fecha de inicio del viaje")
 
     @staticmethod
+    def presentar_estado(venta: dict, reserva: Optional[dict], factura: Optional[dict]) -> dict:
+        """Estado completo de la compra; totalPagado solo incluye pagos aprobados por la pasarela (RN-45)."""
+        return {
+            "ventaId": venta["ventaId"],
+            "clienteId": venta["clienteId"],
+            "valorTotal": venta["valorTotal"],
+            "totalPagado": venta["totalAprobado"],
+            "saldoPendiente": venta["saldoPendiente"],
+            "estado": venta["estado"],
+            "reservaConfirmada": reserva is not None and reserva["estado"] == "confirmada",
+            "facturaGenerada": factura is not None,
+        }
+
+    @staticmethod
     def presentar(venta: dict) -> dict:
         """Datos de la orden que devuelve la API; totalPagado es el total de pagos aprobados."""
         return {
