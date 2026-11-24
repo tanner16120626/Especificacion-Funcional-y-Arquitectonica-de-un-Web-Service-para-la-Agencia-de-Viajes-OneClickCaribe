@@ -8,8 +8,8 @@ Que el sistema me permita aceptar o rechazar mi cotización mientras esté vigen
 
 - El cliente diligencia el formulario del portal web, que envía la solicitud en JSON al endpoint.
 - El sistema consume el endpoint /api/v1/cotizaciones/{cotizacionId}/respuesta de `cotizaciones.api` con el método POST.
-- La capa API valida el formato del JSON y delega el caso de uso a `ResponderCotizacionService`.
-- El dominio valida que la cotización esté emitida y vigente (RN-26, RN-28).
+- La capa API valida el token de acceso del cliente y el formato del JSON, y delega el caso de uso a `ResponderCotizacionService`.
+- El servicio verifica que la cotización pertenezca al cliente del token, y el dominio valida que esté emitida y vigente (RN-26, RN-28); si ya pasó vigenteHasta, se informa como vencida.
 - Si el cliente rechaza, el motivo es obligatorio (RN-30).
 - Se reciben o consultan los campos:
 - cotizacionId / Identificador de la cotización (parámetro de ruta)
@@ -21,40 +21,42 @@ Que el sistema me permita aceptar o rechazar mi cotización mientras esté vigen
 
 ### 1. 🔍 Estructura y lógica del servicio
 
-- [ ] Se expone un endpoint POST que recibe en el cuerpo JSON los campos respuesta y motivo.
-- [ ] Solo se responde una cotización en estado `emitida`.
-- [ ] Una cotización vencida no puede aceptarse (RN-28).
-- [ ] Si la respuesta es `rechazada`, el motivo es obligatorio (RN-30).
-- [ ] El endpoint exige el token de acceso en el encabezado `Authorization: Bearer`; sin token, o con el token vencido, responde 401.
-- [ ] El cliente solo accede a sus propios recursos; si el recurso pertenece a otro cliente, responde 403.
-- [ ] Los errores de formato del JSON (campos faltantes o tipos inválidos) se responden con código 400 y la estructura success, data y message.
+- [x] Se expone un endpoint POST que recibe en el cuerpo JSON los campos respuesta y motivo.
+- [x] Solo se responde una cotización en estado `emitida`; si ya fue aceptada o rechazada, se responde 400 con el mensaje "La cotización ya fue respondida".
+- [x] Una cotización vencida, también cuando ya pasó vigenteHasta (RN-28), no puede responderse; se responde 400 con el mensaje "La cotización está vencida y no puede responderse".
+- [x] Si la respuesta es `rechazada`, el motivo es obligatorio (RN-30); sin motivo se responde 400 con el mensaje "El motivo del rechazo es obligatorio".
+- [x] El endpoint exige el token de acceso en el encabezado `Authorization: Bearer`. Sin token o con un token alterado responde 401 con "Token de acceso inválido o ausente"; con el token vencido responde 401 con "La sesión expiró. Inicie sesión nuevamente".
+- [x] El cliente solo responde sus propias cotizaciones; si la cotización pertenece a otro cliente, o la cuenta no tiene rol cliente, responde 403 con el mensaje "No tiene permisos para realizar esta acción".
+- [x] Los errores de formato del JSON se responden con código 400 y la estructura success, data y message. Mensajes exactos: sin respuesta, "La respuesta es obligatoria"; respuesta distinta de aceptada o rechazada, "La respuesta debe ser aceptada o rechazada".
+- [x] Si la cotización no existe, se responde 404 con el mensaje "La cotización no existe".
+- [x] Después de responder, la consulta de la cotización (HU-009) muestra el nuevo estado: `aceptada` o `rechazada`.
 
 
 ### 2. 📆 Estructura de la información
 
-- [ ] Se responde con la siguiente estructura en JSON:
+- [x] Se responde con la siguiente estructura en JSON (fechaRespuesta corresponde a la fecha y hora en que el cliente responde la cotización):
 
 ```json
 {
-  "message": "Respuesta registrada exitosamente",
+  "success": true,
   "data": {
-    "cotizacionId": "COT-00045",
+    "cotizacionId": "COT-00047",
     "respuesta": "aceptada",
     "motivo": null,
     "estado": "aceptada",
-    "fechaRespuesta": "2026-11-05T11:02:00-05:00"
+    "fechaRespuesta": "2026-11-11T10:20:00-05:00"
   },
-  "success": true
+  "message": "Respuesta registrada exitosamente"
 }
 ```
 
-- [ ] Si la cotización está vencida, el backend retorna:
+- [x] Si la cotización está vencida, el backend retorna:
 
 ```json
 {
-  "message": "La cotización está vencida y no puede aceptarse",
+  "success": false,
   "data": null,
-  "success": false
+  "message": "La cotización está vencida y no puede responderse"
 }
 ```
 
@@ -71,26 +73,26 @@ Que el sistema me permita aceptar o rechazar mi cotización mientras esté vigen
 
 ```json
 {
-  "message": "Respuesta registrada exitosamente",
+  "success": true,
   "data": {
-    "cotizacionId": "COT-00045",
+    "cotizacionId": "COT-00047",
     "respuesta": "aceptada",
     "motivo": null,
     "estado": "aceptada",
-    "fechaRespuesta": "2026-11-05T11:02:00-05:00"
+    "fechaRespuesta": "2026-11-11T10:20:00-05:00"
   },
-  "success": true
+  "message": "Respuesta registrada exitosamente"
 }
 
 ````
 
-- [ ] Si la cotización está vencida, el backend retorna:
+- [x] Si la cotización está vencida, el backend retorna:
 
 ```json
 {
-  "message": "La cotización está vencida y no puede aceptarse",
+  "success": false,
   "data": null,
-  "success": false
+  "message": "La cotización está vencida y no puede responderse"
 }
 ```
 
@@ -100,37 +102,39 @@ Que el sistema me permita aceptar o rechazar mi cotización mientras esté vigen
 
 ### ✅ Caso 1: 
 
-- **Precondición:** La cotización COT-00045 está emitida y vigente.
-- **Acción:** Ejecutar el endpoint POST /api/v1/cotizaciones/COT-00045/respuesta con respuesta "aceptada".
+- **Precondición:** La cliente CLI-00188 (registrada con HU-001) inició sesión con HU-002 y generó con HU-008 la cotización COT-00047, emitida y vigente.
+- **Acción:** Ejecutar el endpoint POST /api/v1/cotizaciones/COT-00047/respuesta con respuesta "aceptada".
 - **Resultado esperado:**
 
   - Código HTTP 200 OK
   - Campo success = true
-  - Campo data.estado = "aceptada"
+  - Campo data.cotizacionId = "COT-00047" y data.estado = "aceptada"
   - Campo message contiene el texto: "Respuesta registrada exitosamente"
 
 ### ✅ Caso 2:
 
-- **Precondición:** La cotización COT-00046 está emitida y vigente.
-- **Acción:** Ejecutar el endpoint con respuesta "rechazada" y motivo "Presupuesto fuera de mi alcance".
+- **Precondición:** La cotización precargada COT-00046 de la cliente CLI-00188 está emitida y vigente.
+- **Acción:** Ejecutar el endpoint POST /api/v1/cotizaciones/COT-00046/respuesta con respuesta "rechazada" y motivo "Presupuesto fuera de mi alcance".
 - **Resultado esperado:**
 
   - Código HTTP 200 OK
   - Campo success = true
   - Campo data.estado = "rechazada" y data.motivo contiene el motivo enviado
+  - Campo message contiene el texto: "Respuesta registrada exitosamente"
 
 ### ✅ Caso 3: 
 
 - **Precondición:** Ejecución exitosa del endpoint.
 - **Resultado esperado:** La respuesta JSON debe contener exactamente los campos:
 
-  - "cotizacionId" (texto)
-  - "respuesta" (texto)
-  - "motivo" (texto)
-  - "estado" (texto)
-  - "fechaRespuesta" (fecha ISO 8601)
-  - "message" (texto)
   - "success" (booleano)
+  - "data" (objeto), con los campos:
+    - "cotizacionId" (texto)
+    - "respuesta" (texto)
+    - "motivo" (texto, o null si la cotización se acepta)
+    - "estado" (texto)
+    - "fechaRespuesta" (fecha ISO 8601)
+  - "message" (texto)
 
 ### ❌ Caso 4: 
 
@@ -141,7 +145,7 @@ Que el sistema me permita aceptar o rechazar mi cotización mientras esté vigen
   - Código HTTP 400 Bad Request
   - El estado de la cotización no cambia
   - Campo success = false y campo data = null
-  - Campo message contiene el texto: "La cotización está vencida y no puede aceptarse" o "El motivo del rechazo es obligatorio", según el caso
+  - Campo message contiene el texto: "La cotización está vencida y no puede responderse" o "El motivo del rechazo es obligatorio", según el caso
 
 ### ❌ Caso 5: 
 
@@ -158,20 +162,20 @@ Que el sistema me permita aceptar o rechazar mi cotización mientras esté vigen
 
 ## 📦 Alcance Funcional
 
-- [ ] El endpoint registra la aceptación o el rechazo de la cotización.
-- [ ] No se acepta una cotización vencida ni un rechazo sin motivo.
-- [ ] La respuesta JSON cumple con el contrato definido.
+- [x] El endpoint registra la aceptación o el rechazo de la cotización.
+- [x] No se responde una cotización vencida ni se acepta un rechazo sin motivo.
+- [x] La respuesta JSON cumple con el contrato definido.
 
 ## 🧪 Pruebas Completadas
 
-- [ ] Se ejecutaron pruebas unitarias para validar la vigencia, el estado y el motivo de rechazo.
-- [ ] Se cubrieron los casos de error y de excepción.
-- [ ] Las pruebas funcionales están documentadas y pasadas.
+- [x] Se ejecutaron pruebas funcionales en Swagger para validar la vigencia, el estado y el motivo de rechazo.
+- [x] Se cubrieron los casos de error y de excepción.
+- [x] Las pruebas funcionales están documentadas y pasadas.
 
 ## 📄 Documentación Técnica
 
-- [ ] Endpoint documentado en Swagger / OpenAPI.
-- [ ] Se describe:
+- [x] Endpoint documentado en Swagger / OpenAPI.
+- [x] Se describe:
 
   - Propósito del endpoint
   - Campos de entrada y salida
@@ -180,5 +184,5 @@ Que el sistema me permita aceptar o rechazar mi cotización mientras esté vigen
 
 ## 🔐 Manejo de Errores
 
-- [ ] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
-- [ ] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.
+- [x] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
+- [x] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.
