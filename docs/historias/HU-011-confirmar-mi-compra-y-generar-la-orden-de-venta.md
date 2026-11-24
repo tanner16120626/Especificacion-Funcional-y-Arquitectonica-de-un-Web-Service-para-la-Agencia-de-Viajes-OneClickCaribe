@@ -8,8 +8,8 @@ Que el sistema genere automáticamente la orden de venta a partir de mi cotizaci
 
 - El cliente diligencia el formulario del portal web, que envía la solicitud en JSON al endpoint.
 - El sistema consume el endpoint /api/v1/ventas de `ventas.api` con el método POST.
-- La capa API valida el formato del JSON y delega el caso de uso a `GenerarOrdenVentaService`.
-- El dominio valida que la cotización esté aceptada y vigente (RN-31) y que no tenga ya una orden.
+- La capa API valida el token de acceso del cliente y el formato del JSON, y delega el caso de uso a `GenerarOrdenVentaService`.
+- El servicio verifica que la cotización pertenezca al cliente del token y que no tenga ya una orden, y el dominio valida que esté aceptada y vigente (RN-31).
 - La orden recibe un código propio vinculado a la cotización (RN-32) y copia sus precios, que ya no se modifican (RN-34).
 - Si la modalidad es parcial, la fecha límite del saldo es obligatoria y anterior al viaje (RN-33).
 - Se reciben o consultan los campos:
@@ -22,25 +22,27 @@ Que el sistema genere automáticamente la orden de venta a partir de mi cotizaci
 
 ### 1. 🔍 Estructura y lógica del servicio
 
-- [ ] Se expone un endpoint POST que recibe en el cuerpo JSON cotizacionId, modalidadPago y fechaLimiteSaldo.
-- [ ] Solo se genera la orden de una cotización aceptada y vigente (RN-31).
-- [ ] La orden tiene un ventaId propio, distinto del cotizacionId y vinculado a él (RN-32).
-- [ ] Si la modalidad es parcial, fechaLimiteSaldo es obligatoria y anterior a la fecha de inicio del viaje (RN-33).
-- [ ] Los precios se copian de la cotización y no se modifican después (RN-34).
-- [ ] El endpoint exige el token de acceso en el encabezado `Authorization: Bearer`; sin token, o con el token vencido, responde 401.
-- [ ] El cliente solo accede a sus propios recursos; si el recurso pertenece a otro cliente, responde 403.
-- [ ] Los errores de formato del JSON (campos faltantes o tipos inválidos) se responden con código 400 y la estructura success, data y message.
+- [x] Se expone un endpoint POST que recibe en el cuerpo JSON cotizacionId, modalidadPago y fechaLimiteSaldo.
+- [x] Solo se genera la orden de una cotización aceptada y vigente (RN-31); si no está aceptada se responde 400 con el mensaje "Solo se genera la orden de una cotización aceptada", y si ya pasó su vigencia, 400 con el mensaje "La cotización está vencida y no puede generar una orden de venta".
+- [x] La orden tiene un ventaId propio, distinto del cotizacionId y vinculado a él (RN-32).
+- [x] Si la modalidad es parcial, fechaLimiteSaldo es obligatoria y anterior a la fecha de inicio del viaje (RN-33); sin ella se responde 400 con el mensaje "La fecha límite del saldo es obligatoria", y si no es anterior al viaje, 400 con el mensaje "La fecha límite del saldo debe ser anterior a la fecha de inicio del viaje". Si la modalidad es total, fechaLimiteSaldo queda en null.
+- [x] Los precios se copian de la cotización y no se modifican después (RN-34).
+- [x] Una cotización solo tiene una orden de venta; si ya la tiene, se responde 409 con el mensaje "La cotización ya tiene una orden de venta" y en data la orden existente.
+- [x] El endpoint exige el token de acceso en el encabezado `Authorization: Bearer`. Sin token o con un token alterado responde 401 con "Token de acceso inválido o ausente"; con el token vencido responde 401 con "La sesión expiró. Inicie sesión nuevamente".
+- [x] El cliente solo usa sus propias cotizaciones; si la cotización pertenece a otro cliente, o la cuenta no tiene rol cliente, responde 403 con el mensaje "No tiene permisos para realizar esta acción".
+- [x] Si la cotización no existe, se responde 404 con el mensaje "La cotización no existe".
+- [x] Los errores de formato del JSON se responden con código 400 y la estructura success, data y message. Mensajes exactos: sin cotizacionId, "El identificador de la cotización es obligatorio"; sin modalidadPago, "La modalidad de pago es obligatoria"; modalidad distinta de total o parcial, "La modalidad de pago debe ser total o parcial"; fechaLimiteSaldo con otro formato, "El campo 'fechaLimiteSaldo' debe ser una fecha con formato AAAA-MM-DD".
 
 
 ### 2. 📆 Estructura de la información
 
-- [ ] Se responde con la siguiente estructura en JSON:
+- [x] Se responde con la siguiente estructura en JSON (fechaCreacion corresponde a la fecha y hora en que se genera la orden; VEN-00014 es el primer identificador libre, porque VEN-00010, VEN-00012 y VEN-00013 ya están precargadas):
 
 ```json
 {
-  "message": "Orden de venta generada exitosamente",
+  "success": true,
   "data": {
-    "ventaId": "VEN-00012",
+    "ventaId": "VEN-00014",
     "cotizacionId": "COT-00045",
     "clienteId": "CLI-00188",
     "valorTotal": 8081600,
@@ -49,22 +51,22 @@ Que el sistema genere automáticamente la orden de venta a partir de mi cotizaci
     "totalPagado": 0,
     "saldoPendiente": 8081600,
     "estado": "pendiente_pago",
-    "fechaCreacion": "2026-11-05T11:05:00-05:00"
+    "fechaCreacion": "2026-11-11T10:25:00-05:00"
   },
-  "success": true
+  "message": "Orden de venta generada exitosamente"
 }
 ```
 
-- [ ] Si la cotización ya tiene una orden, el backend retorna:
+- [x] Si la cotización ya tiene una orden, el backend retorna:
 
 ```json
 {
-  "message": "La cotización ya tiene una orden de venta",
+  "success": false,
   "data": {
-    "ventaId": "VEN-00012",
+    "ventaId": "VEN-00014",
     "cotizacionId": "COT-00045"
   },
-  "success": false
+  "message": "La cotización ya tiene una orden de venta"
 }
 ```
 
@@ -81,9 +83,9 @@ Que el sistema genere automáticamente la orden de venta a partir de mi cotizaci
 
 ```json
 {
-  "message": "Orden de venta generada exitosamente",
+  "success": true,
   "data": {
-    "ventaId": "VEN-00012",
+    "ventaId": "VEN-00014",
     "cotizacionId": "COT-00045",
     "clienteId": "CLI-00188",
     "valorTotal": 8081600,
@@ -92,23 +94,23 @@ Que el sistema genere automáticamente la orden de venta a partir de mi cotizaci
     "totalPagado": 0,
     "saldoPendiente": 8081600,
     "estado": "pendiente_pago",
-    "fechaCreacion": "2026-11-05T11:05:00-05:00"
+    "fechaCreacion": "2026-11-11T10:25:00-05:00"
   },
-  "success": true
+  "message": "Orden de venta generada exitosamente"
 }
 
 ````
 
-- [ ] Si la cotización ya tiene una orden, el backend retorna:
+- [x] Si la cotización ya tiene una orden, el backend retorna:
 
 ```json
 {
-  "message": "La cotización ya tiene una orden de venta",
+  "success": false,
   "data": {
-    "ventaId": "VEN-00012",
+    "ventaId": "VEN-00014",
     "cotizacionId": "COT-00045"
   },
-  "success": false
+  "message": "La cotización ya tiene una orden de venta"
 }
 ```
 
@@ -118,25 +120,26 @@ Que el sistema genere automáticamente la orden de venta a partir de mi cotizaci
 
 ### ✅ Caso 1: 
 
-- **Precondición:** La cotización COT-00045 está aceptada y no tiene orden.
+- **Precondición:** La cliente CLI-00188 (registrada con HU-001) inició sesión con HU-002 y su cotización precargada COT-00045 está aceptada, vigente y sin orden.
 - **Acción:** Ejecutar el endpoint POST /api/v1/ventas con cotizacionId COT-00045, modalidad parcial y fecha límite 2026-11-30.
 - **Resultado esperado:**
 
   - Código HTTP 201 Created
   - Campo success = true
+  - Campo data.ventaId = "VEN-00014" y data.cotizacionId = "COT-00045"
   - Campo data.estado = "pendiente_pago" y data.saldoPendiente = 8081600
   - Campo message contiene el texto: "Orden de venta generada exitosamente"
 
 ### ✅ Caso 2:
 
-- **Precondición:** La cotización COT-00045 ya tiene la orden VEN-00012.
-- **Acción:** Ejecutar de nuevo el endpoint con cotizacionId COT-00045.
+- **Precondición:** La cotización COT-00045 ya tiene la orden VEN-00014, generada en el Caso 1.
+- **Acción:** Ejecutar de nuevo el endpoint POST /api/v1/ventas con cotizacionId COT-00045.
 - **Resultado esperado:**
 
   - Código HTTP 409 Conflict
   - No se crea una nueva orden
   - Campo success = false
-  - Campo data.ventaId contiene la orden existente
+  - Campo data.ventaId = "VEN-00014", la orden existente
   - Campo message contiene el texto: "La cotización ya tiene una orden de venta"
 
 ### ✅ Caso 3: 
@@ -144,22 +147,23 @@ Que el sistema genere automáticamente la orden de venta a partir de mi cotizaci
 - **Precondición:** Ejecución exitosa del endpoint.
 - **Resultado esperado:** La respuesta JSON debe contener exactamente los campos:
 
-  - "ventaId" (texto)
-  - "cotizacionId" (texto)
-  - "clienteId" (texto)
-  - "valorTotal" (número)
-  - "modalidadPago" (texto)
-  - "fechaLimiteSaldo" (fecha ISO 8601)
-  - "totalPagado" (número)
-  - "saldoPendiente" (número)
-  - "estado" (texto)
-  - "fechaCreacion" (fecha ISO 8601)
-  - "message" (texto)
   - "success" (booleano)
+  - "data" (objeto), con los campos:
+    - "ventaId" (texto)
+    - "cotizacionId" (texto)
+    - "clienteId" (texto)
+    - "valorTotal" (número)
+    - "modalidadPago" (texto)
+    - "fechaLimiteSaldo" (fecha ISO 8601, o null si la modalidad es total)
+    - "totalPagado" (número)
+    - "saldoPendiente" (número)
+    - "estado" (texto)
+    - "fechaCreacion" (fecha ISO 8601)
+  - "message" (texto)
 
 ### ❌ Caso 4: 
 
-- **Precondición:** La cotización COT-00046 fue rechazada, o se envía modalidad parcial sin fecha límite.
+- **Precondición:** La cotización COT-00046 fue rechazada con HU-010, o se envía modalidad parcial sin fecha límite.
 - **Acción:** Ejecutar el endpoint con cada uno de esos casos.
 - **Resultado esperado:**
 
@@ -183,20 +187,20 @@ Que el sistema genere automáticamente la orden de venta a partir de mi cotizaci
 
 ## 📦 Alcance Funcional
 
-- [ ] El endpoint genera la orden de venta a partir de una cotización aceptada.
-- [ ] La orden conserva los precios de la cotización y su modalidad de pago.
-- [ ] La respuesta JSON cumple con el contrato definido.
+- [x] El endpoint genera la orden de venta a partir de una cotización aceptada.
+- [x] La orden conserva los precios de la cotización y su modalidad de pago.
+- [x] La respuesta JSON cumple con el contrato definido.
 
 ## 🧪 Pruebas Completadas
 
-- [ ] Se ejecutaron pruebas unitarias para validar el estado de la cotización, la duplicidad y la modalidad de pago.
-- [ ] Se cubrieron los casos de error y de excepción.
-- [ ] Las pruebas funcionales están documentadas y pasadas.
+- [x] Se ejecutaron pruebas funcionales en Swagger para validar el estado de la cotización, la duplicidad y la modalidad de pago.
+- [x] Se cubrieron los casos de error y de excepción.
+- [x] Las pruebas funcionales están documentadas y pasadas.
 
 ## 📄 Documentación Técnica
 
-- [ ] Endpoint documentado en Swagger / OpenAPI.
-- [ ] Se describe:
+- [x] Endpoint documentado en Swagger / OpenAPI.
+- [x] Se describe:
 
   - Propósito del endpoint
   - Campos de entrada y salida
@@ -205,5 +209,5 @@ Que el sistema genere automáticamente la orden de venta a partir de mi cotizaci
 
 ## 🔐 Manejo de Errores
 
-- [ ] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
-- [ ] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.
+- [x] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
+- [x] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.
