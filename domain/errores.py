@@ -29,3 +29,15 @@ class PermisoDenegadoError(ErrorNegocio):
     """El recurso pertenece a otro usuario. Se responde con código 403."""
 
     status_code = 403
+
+
+class PagoRechazadoError(ErrorNegocio):
+    """La pasarela de pagos rechazó la transacción. Se responde con código 402."""
+
+    status_code = 402
+
+
+class PasarelaNoDisponibleError(ErrorNegocio):
+    """La pasarela de pagos no responde. Se responde con código 503."""
+
+    status_code = 503

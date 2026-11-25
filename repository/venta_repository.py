@@ -24,5 +24,10 @@ class VentaRepository:
         self._ventas.append(venta)
         return venta
 
+    def actualizar_pago(self, venta_id: str, total_aprobado: int, saldo_pendiente: int, estado: str) -> dict:
+        venta = self.buscar_por_id(venta_id)
+        venta.update({"totalAprobado": total_aprobado, "saldoPendiente": saldo_pendiente, "estado": estado})
+        return venta
+
 
 venta_repository = VentaRepository()
