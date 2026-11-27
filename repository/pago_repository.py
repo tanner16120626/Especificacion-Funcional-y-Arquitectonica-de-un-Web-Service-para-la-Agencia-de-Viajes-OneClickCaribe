@@ -1,5 +1,5 @@
 """Repositorio en memoria de pagos."""
-from typing import Optional
+from typing import List, Optional
 
 from repository.datos_iniciales import PAGOS, copia
 
@@ -20,6 +20,9 @@ class PagoRepository:
         pago = next(p for p in self._pagos if p["pagoId"] == pago_id)
         pago["estado"] = estado
         return pago
+
+    def listar_por_venta(self, venta_id: str) -> List[dict]:
+        return [p for p in self._pagos if p["ventaId"] == venta_id]
 
     def total_pse_pendiente(self, venta_id: str) -> int:
         """Suma de los pagos PSE de la orden que esperan la confirmación del banco."""
