@@ -13,6 +13,14 @@ class PagoRepository:
     def buscar_por_clave(self, clave_idempotencia: str) -> Optional[dict]:
         return next((p for p in self._pagos if p["claveIdempotencia"] == clave_idempotencia), None)
 
+    def buscar_por_transaccion(self, transaccion_id: str) -> Optional[dict]:
+        return next((p for p in self._pagos if p["transaccionId"] == transaccion_id), None)
+
+    def actualizar_estado(self, pago_id: str, estado: str) -> dict:
+        pago = next(p for p in self._pagos if p["pagoId"] == pago_id)
+        pago["estado"] = estado
+        return pago
+
     def total_pse_pendiente(self, venta_id: str) -> int:
         """Suma de los pagos PSE de la orden que esperan la confirmación del banco."""
         return sum(p["monto"] for p in self._pagos

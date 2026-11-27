@@ -41,3 +41,9 @@ class PasarelaNoDisponibleError(ErrorNegocio):
     """La pasarela de pagos no responde. Se responde con código 503."""
 
     status_code = 503
+
+
+class FirmaInvalidaError(ErrorNegocio):
+    """La notificación de la pasarela no tiene una firma válida. Se responde con código 401."""
+
+    status_code = 401
