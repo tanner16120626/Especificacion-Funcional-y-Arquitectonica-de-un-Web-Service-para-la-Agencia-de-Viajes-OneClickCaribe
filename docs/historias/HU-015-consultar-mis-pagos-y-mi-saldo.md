@@ -8,9 +8,9 @@ Que el sistema me muestre los pagos de mi compra con el resultado de cada transa
 
 - El cliente realiza la consulta desde el portal web, que invoca el endpoint.
 - El sistema consume el endpoint /api/v1/ventas/{ventaId}/pagos de `pagos.api` con el método GET.
-- La capa API valida el formato del JSON y delega el caso de uso a `ConsultarPagosService`.
-- El servicio verifica que la orden exista.
-- El repositorio en memoria devuelve los pagos de la orden y el dominio calcula el saldo.
+- La capa API valida el token de acceso del cliente y delega el caso de uso a `ConsultarPagosService`.
+- El servicio verifica que la orden exista y que pertenezca al cliente del token.
+- El repositorio en memoria devuelve los pagos de la orden, incluidos los registrados con HU-013 y actualizados con HU-014 en la misma sesión, y el dominio calcula el saldo.
 - Se reciben o consultan los campos:
 - ventaId / Identificador de la orden (parámetro de ruta)
 
@@ -19,20 +19,22 @@ Que el sistema me muestre los pagos de mi compra con el resultado de cada transa
 
 ### 1. 🔍 Estructura y lógica del servicio
 
-- [ ] Se expone un endpoint GET que recibe el ventaId como parámetro de ruta.
-- [ ] Se listan los pagos de la orden con fecha, medio, monto y estado: `aprobado`, `pendiente` o `rechazado`.
-- [ ] El saldo es el valor de la orden menos los pagos aprobados (RN-45).
-- [ ] El endpoint exige el token de acceso en el encabezado `Authorization: Bearer`; sin token, o con el token vencido, responde 401.
-- [ ] El cliente solo accede a sus propios recursos; si el recurso pertenece a otro cliente, responde 403.
+- [x] Se expone un endpoint GET que recibe el ventaId como parámetro de ruta.
+- [x] Se listan los pagos de la orden en orden de fecha, con pagoId, fecha, medio, monto y estado: `aprobado`, `pendiente` o `rechazado`; nunca se muestran los datos de pago ni los de la tarjeta.
+- [x] totalAprobado suma solo los pagos aprobados y el saldo es el valor de la orden menos esos pagos (RN-45); un pago PSE pendiente aparece en la lista sin descontarse del saldo.
+- [x] Si la orden no tiene pagos, responde 200 con la lista vacía, el saldo igual al valor de la orden y el mensaje "La orden no tiene pagos registrados".
+- [x] Si la orden no existe, se responde 404 con el mensaje "La orden de venta no existe".
+- [x] El endpoint exige el token de acceso en el encabezado `Authorization: Bearer`. Sin token o con un token alterado responde 401 con "Token de acceso inválido o ausente"; con el token vencido responde 401 con "La sesión expiró. Inicie sesión nuevamente".
+- [x] El cliente solo consulta los pagos de sus propias órdenes; si la orden pertenece a otro cliente, o la cuenta no tiene rol cliente, responde 403 con el mensaje "No tiene permisos para realizar esta acción".
 
 
 ### 2. 📆 Estructura de la información
 
-- [ ] Se responde con la siguiente estructura en JSON:
+- [x] Se responde con la siguiente estructura en JSON (VEN-00012 después del abono PAG-00021 registrado con HU-013; fechaPago corresponde a la fecha y hora en que se procesó cada pago):
 
 ```json
 {
-  "message": "Pagos consultados exitosamente",
+  "success": true,
   "data": {
     "ventaId": "VEN-00012",
     "valorTotal": 8081600,
@@ -40,23 +42,23 @@ Que el sistema me muestre los pagos de mi compra con el resultado de cada transa
     "saldoPendiente": 3081600,
     "pagos": [
       {
-        "pagoId": "PAG-00031",
-        "fechaPago": "2026-11-05T10:15:00-05:00",
+        "pagoId": "PAG-00021",
+        "fechaPago": "2026-11-11T10:15:00-05:00",
         "medioPago": "tarjeta_credito",
         "monto": 5000000,
         "estado": "aprobado"
       }
     ]
   },
-  "success": true
+  "message": "Pagos consultados exitosamente"
 }
 ```
 
-- [ ] Si la orden no tiene pagos, el backend retorna:
+- [x] Si la orden no tiene pagos, el backend retorna:
 
 ```json
 {
-  "message": "La orden no tiene pagos registrados",
+  "success": true,
   "data": {
     "ventaId": "VEN-00013",
     "valorTotal": 3150000,
@@ -64,7 +66,7 @@ Que el sistema me muestre los pagos de mi compra con el resultado de cada transa
     "saldoPendiente": 3150000,
     "pagos": []
   },
-  "success": true
+  "message": "La orden no tiene pagos registrados"
 }
 ```
 
@@ -81,7 +83,7 @@ Que el sistema me muestre los pagos de mi compra con el resultado de cada transa
 
 ```json
 {
-  "message": "Pagos consultados exitosamente",
+  "success": true,
   "data": {
     "ventaId": "VEN-00012",
     "valorTotal": 8081600,
@@ -89,32 +91,54 @@ Que el sistema me muestre los pagos de mi compra con el resultado de cada transa
     "saldoPendiente": 3081600,
     "pagos": [
       {
-        "pagoId": "PAG-00031",
-        "fechaPago": "2026-11-05T10:15:00-05:00",
+        "pagoId": "PAG-00021",
+        "fechaPago": "2026-11-11T10:15:00-05:00",
         "medioPago": "tarjeta_credito",
         "monto": 5000000,
         "estado": "aprobado"
+      },
+      {
+        "pagoId": "PAG-00022",
+        "fechaPago": "2026-11-11T10:20:00-05:00",
+        "medioPago": "pse",
+        "monto": 3081600,
+        "estado": "pendiente"
       }
     ]
   },
-  "success": true
+  "message": "Pagos consultados exitosamente"
 }
 
 ````
 
-- [ ] Si la orden no tiene pagos, el backend retorna:
+- [x] Cuando la pasarela aprueba el PSE PAG-00022 con HU-014, el backend retorna:
 
 ```json
 {
-  "message": "La orden no tiene pagos registrados",
+  "success": true,
   "data": {
-    "ventaId": "VEN-00013",
-    "valorTotal": 3150000,
-    "totalAprobado": 0,
-    "saldoPendiente": 3150000,
-    "pagos": []
+    "ventaId": "VEN-00012",
+    "valorTotal": 8081600,
+    "totalAprobado": 8081600,
+    "saldoPendiente": 0,
+    "pagos": [
+      {
+        "pagoId": "PAG-00021",
+        "fechaPago": "2026-11-11T10:15:00-05:00",
+        "medioPago": "tarjeta_credito",
+        "monto": 5000000,
+        "estado": "aprobado"
+      },
+      {
+        "pagoId": "PAG-00022",
+        "fechaPago": "2026-11-11T10:20:00-05:00",
+        "medioPago": "pse",
+        "monto": 3081600,
+        "estado": "aprobado"
+      }
+    ]
   },
-  "success": true
+  "message": "Pagos consultados exitosamente"
 }
 ```
 
@@ -124,8 +148,8 @@ Que el sistema me muestre los pagos de mi compra con el resultado de cada transa
 
 ### ✅ Caso 1: 
 
-- **Precondición:** La orden VEN-00012 tiene un pago aprobado de 5.000.000.
-- **Acción:** Ejecutar el endpoint GET /api/v1/ventas/VEN-00012/pagos.
+- **Precondición:** La cliente CLI-00188 (registrada con HU-001) inició sesión con HU-002 y la orden VEN-00012 tiene un pago aprobado de 5.000.000 (PAG-00021, registrado con HU-013).
+- **Acción:** Ejecutar el endpoint GET /api/v1/ventas/VEN-00012/pagos con su token.
 - **Resultado esperado:**
 
   - Código HTTP 200 OK
@@ -135,7 +159,7 @@ Que el sistema me muestre los pagos de mi compra con el resultado de cada transa
 
 ### ✅ Caso 2:
 
-- **Precondición:** La orden VEN-00013 no tiene pagos.
+- **Precondición:** La orden precargada VEN-00013 no tiene pagos.
 - **Acción:** Ejecutar el endpoint GET /api/v1/ventas/VEN-00013/pagos.
 - **Resultado esperado:**
 
@@ -148,13 +172,19 @@ Que el sistema me muestre los pagos de mi compra con el resultado de cada transa
 - **Precondición:** Ejecución exitosa del endpoint.
 - **Resultado esperado:** La respuesta JSON debe contener exactamente los campos:
 
-  - "ventaId" (texto)
-  - "valorTotal" (número)
-  - "totalAprobado" (número)
-  - "saldoPendiente" (número)
-  - "pagos" (lista)
-  - "message" (texto)
   - "success" (booleano)
+  - "data" (objeto), con los campos:
+    - "ventaId" (texto)
+    - "valorTotal" (número)
+    - "totalAprobado" (número)
+    - "saldoPendiente" (número)
+    - "pagos" (lista), donde cada pago tiene:
+      - "pagoId" (texto)
+      - "fechaPago" (fecha ISO 8601)
+      - "medioPago" (texto)
+      - "monto" (número)
+      - "estado" (texto)
+  - "message" (texto)
 
 ### ❌ Caso 4: 
 
@@ -181,20 +211,20 @@ Que el sistema me muestre los pagos de mi compra con el resultado de cada transa
 
 ## 📦 Alcance Funcional
 
-- [ ] El endpoint devuelve los pagos de la orden y su saldo.
-- [ ] El saldo coincide con el valor de la orden menos los pagos.
-- [ ] La respuesta JSON cumple con el contrato definido.
+- [x] El endpoint devuelve los pagos de la orden y su saldo.
+- [x] El saldo coincide con el valor de la orden menos los pagos aprobados.
+- [x] La respuesta JSON cumple con el contrato definido.
 
 ## 🧪 Pruebas Completadas
 
-- [ ] Se ejecutaron pruebas unitarias para validar la suma de pagos y el saldo.
-- [ ] Se cubrieron los casos de error y de excepción.
-- [ ] Las pruebas funcionales están documentadas y pasadas.
+- [x] Se ejecutaron pruebas funcionales en Swagger para validar la suma de pagos y el saldo.
+- [x] Se cubrieron los casos de error y de excepción.
+- [x] Las pruebas funcionales están documentadas y pasadas.
 
 ## 📄 Documentación Técnica
 
-- [ ] Endpoint documentado en Swagger / OpenAPI.
-- [ ] Se describe:
+- [x] Endpoint documentado en Swagger / OpenAPI.
+- [x] Se describe:
 
   - Propósito del endpoint
   - Campos de entrada y salida
@@ -203,5 +233,5 @@ Que el sistema me muestre los pagos de mi compra con el resultado de cada transa
 
 ## 🔐 Manejo de Errores
 
-- [ ] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
-- [ ] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.
+- [x] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
+- [x] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.

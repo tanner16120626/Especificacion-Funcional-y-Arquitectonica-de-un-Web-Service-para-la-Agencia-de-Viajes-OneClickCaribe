@@ -1,4 +1,5 @@
-"""Servicio de pagos: procesa el pago en línea, las notificaciones de la pasarela y automatiza la orden pagada."""
+"""Servicio de pagos: procesa el pago en línea y las notificaciones de la pasarela, automatiza la orden pagada
+y consulta los pagos de la orden."""
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
 
@@ -170,3 +171,20 @@ class ProcesarNotificacionPagoService:
             fecha = datetime.now(ZONA_COLOMBIA).replace(microsecond=0).isoformat()
             self._aprobacion.aplicar(self._ventas.buscar_por_id(pago["ventaId"]), pago["monto"], fecha)
         return True, self._presentar(pago)
+
+
+class ConsultarPagosService:
+    """Caso de uso de la consulta de los pagos y el saldo de una orden."""
+
+    def __init__(self, ventas: VentaRepository, pagos: PagoRepository):
+        self._ventas = ventas
+        self._pagos = pagos
+
+    def consultar(self, cliente_id: str, venta_id: str) -> dict:
+        """HU-015: pagos de la orden con su estado; el saldo es el valor de la orden menos los aprobados (RN-45)."""
+        venta = self._ventas.buscar_por_id(venta_id)
+        if venta is None:
+            raise NoEncontradoError("La orden de venta no existe")
+        if venta["clienteId"] != cliente_id:
+            raise PermisoDenegadoError("No tiene permisos para realizar esta acción")
+        return Pago.presentar_pagos(venta, self._pagos.listar_por_venta(venta_id))
