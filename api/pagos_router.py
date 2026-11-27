@@ -13,7 +13,7 @@ from repository.pago_repository import pago_repository
 from repository.reserva_repository import reserva_repository
 from repository.tarifa_repository import tarifa_repository
 from repository.venta_repository import venta_repository
-from service.pago_service import (AplicarPagoAprobadoService, AutomatizarOrdenPagadaService,
+from service.pago_service import (AplicarPagoAprobadoService, AutomatizarOrdenPagadaService, ConsultarPagosService,
                                   ProcesarNotificacionPagoService, ProcesarPagoService)
 from service.pasarela_service import clave_notificaciones, pasarela_pagos
 
@@ -40,6 +40,10 @@ def obtener_procesar_pago_service() -> ProcesarPagoService:
 def obtener_procesar_notificacion_pago_service() -> ProcesarNotificacionPagoService:
     return ProcesarNotificacionPagoService(venta_repository, pago_repository, reserva_repository, factura_repository,
                                            _aplicar_pago_aprobado_service(), clave_notificaciones())
+
+
+def obtener_consultar_pagos_service() -> ConsultarPagosService:
+    return ConsultarPagosService(venta_repository, pago_repository)
 
 
 def _ejemplo(descripcion: str, contenido: dict) -> dict:
@@ -152,3 +156,45 @@ def confirmar_automaticamente_mi_pago_por_pse(
         return respuesta_error(error.mensaje, error.status_code, error.data)
     except Exception:
         return respuesta_error("No fue posible procesar la notificación", 500)
+
+
+@router.get(
+    "/ventas/{ventaId}/pagos",
+    status_code=200,
+    summary="HU-015 Consultar mis pagos y mi saldo",
+    description="Lista los pagos de una orden del cliente autenticado, en orden de fecha, con pagoId, fechaPago, "
+                "medioPago, monto y estado (aprobado, pendiente o rechazado); nunca muestra datosPago ni datos de la "
+                "tarjeta. totalAprobado suma solo los pagos aprobados y saldoPendiente es el valor de la orden menos "
+                "esos pagos (RN-45); un PSE pendiente aparece en la lista sin descontarse del saldo. Una orden sin "
+                "pagos responde con la lista vacía y el mensaje \"La orden no tiene pagos registrados\". Solo para el "
+                "rol cliente.",
+    responses={
+        200: _ejemplo("Pagos consultados. Sin pagos, pagos es una lista vacía y el message es \"La orden no tiene "
+                      "pagos registrados\"", {"success": True, "data": {
+                          "ventaId": "VEN-00012", "valorTotal": 8081600, "totalAprobado": 5000000,
+                          "saldoPendiente": 3081600, "pagos": [
+                              {"pagoId": "PAG-00021", "fechaPago": "2026-11-11T10:15:00-05:00",
+                               "medioPago": "tarjeta_credito", "monto": 5000000, "estado": "aprobado"},
+                              {"pagoId": "PAG-00022", "fechaPago": "2026-11-11T10:20:00-05:00",
+                               "medioPago": "pse", "monto": 3081600, "estado": "pendiente"}]},
+                       "message": "Pagos consultados exitosamente"}),
+        401: _ejemplo("Token vencido, inválido o ausente", {"success": False, "data": None, "message": "Token de acceso inválido o ausente"}),
+        403: _ejemplo("La orden es de otro cliente o la cuenta no tiene rol cliente",
+                      {"success": False, "data": None, "message": "No tiene permisos para realizar esta acción"}),
+        404: _ejemplo("Orden no encontrada", {"success": False, "data": None, "message": "La orden de venta no existe"}),
+        500: _ejemplo("Error del repositorio", {"success": False, "data": None, "message": "No fue posible consultar los pagos"}),
+    },
+)
+def consultar_mis_pagos_y_mi_saldo(
+    ventaId: str,
+    usuario: dict = Depends(requiere_rol("cliente")),
+    servicio: ConsultarPagosService = Depends(obtener_consultar_pagos_service),
+):
+    try:
+        resultado = servicio.consultar(usuario.get("clienteId"), ventaId)
+        mensaje = "Pagos consultados exitosamente" if resultado["pagos"] else "La orden no tiene pagos registrados"
+        return respuesta(data=resultado, message=mensaje)
+    except ErrorNegocio as error:
+        return respuesta_error(error.mensaje, error.status_code, error.data)
+    except Exception:
+        return respuesta_error("No fue posible consultar los pagos", 500)

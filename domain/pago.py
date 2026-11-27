@@ -1,5 +1,6 @@
 """Dominio de pagos: esquema del pago en línea y reglas de su procesamiento."""
 import hmac
+from datetime import datetime
 from hashlib import sha256
 from typing import Dict, List, Optional, Tuple
 
@@ -121,6 +122,20 @@ class Pago:
             "estadoOrden": venta["estado"],
             "reservaConfirmada": reserva is not None and reserva["estado"] == "confirmada",
             "facturaGenerada": factura is not None,
+        }
+
+    @staticmethod
+    def presentar_pagos(venta: dict, pagos: List[dict]) -> dict:
+        """Pagos de la orden en orden de fecha; el saldo descuenta solo los pagos aprobados (RN-45)."""
+        total_aprobado = sum(p["monto"] for p in pagos if p["estado"] == "aprobado")
+        ordenados = sorted(pagos, key=lambda p: datetime.fromisoformat(p["fechaPago"]))
+        return {
+            "ventaId": venta["ventaId"],
+            "valorTotal": venta["valorTotal"],
+            "totalAprobado": total_aprobado,
+            "saldoPendiente": venta["valorTotal"] - total_aprobado,
+            "pagos": [{"pagoId": p["pagoId"], "fechaPago": p["fechaPago"], "medioPago": p["medioPago"],
+                       "monto": p["monto"], "estado": p["estado"]} for p in ordenados],
         }
 
     @staticmethod
