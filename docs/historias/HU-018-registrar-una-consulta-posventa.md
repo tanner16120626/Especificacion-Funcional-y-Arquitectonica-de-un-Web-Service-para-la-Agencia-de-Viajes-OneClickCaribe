@@ -8,10 +8,10 @@ Que el sistema me permita registrar una consulta vinculada a mi orden.
 
 - El cliente diligencia el formulario del portal web, que envía la solicitud en JSON al endpoint.
 - El sistema consume el endpoint /api/v1/posventa/consultas de `posventa.api` con el método POST.
-- La capa API valida el formato del JSON y delega el caso de uso a `RegistrarConsultaService`.
-- El servicio verifica que la orden exista y vincula la consulta a ella (RN-83).
+- La capa API valida el token de acceso del cliente y el formato del JSON, y delega el caso de uso a `RegistrarConsultaService`.
+- El servicio verifica que la orden exista y que pertenezca al cliente del token, y vincula la consulta a ella (RN-83).
 - El dominio valida la categoría: una consulta no modifica la venta (RN-81).
-- La consulta queda abierta y sin fecha de vencimiento (RN-85).
+- La consulta queda abierta y sin fecha de vencimiento (RN-85), a la espera de la respuesta del asesor (HU-019).
 - Se reciben o consultan los campos:
 - ventaId / Identificador de la orden
 - categoria / `equipaje`, `documentos`, `itinerario`, `check_in`, `servicios_adicionales` u `otro`
@@ -22,41 +22,42 @@ Que el sistema me permita registrar una consulta vinculada a mi orden.
 
 ### 1. 🔍 Estructura y lógica del servicio
 
-- [ ] Se expone un endpoint POST que recibe en el cuerpo JSON ventaId, categoria y descripcion.
-- [ ] La consulta queda vinculada a una orden existente (RN-83).
-- [ ] Solo se aceptan las categorías permitidas; una consulta no modifica la venta (RN-81).
-- [ ] La consulta se crea en estado `abierta`, sin fecha de vencimiento (RN-85).
-- [ ] El endpoint exige el token de acceso en el encabezado `Authorization: Bearer`; sin token, o con el token vencido, responde 401.
-- [ ] El cliente solo accede a sus propios recursos; si el recurso pertenece a otro cliente, responde 403.
-- [ ] Los errores de formato del JSON (campos faltantes o tipos inválidos) se responden con código 400 y la estructura success, data y message.
+- [x] Se expone un endpoint POST que recibe en el cuerpo JSON ventaId, categoria y descripcion.
+- [x] La consulta queda vinculada a una orden existente (RN-83); si la orden no existe, responde 404 con el mensaje "La orden de venta no existe".
+- [x] Solo se aceptan las categorías permitidas: `equipaje`, `documentos`, `itinerario`, `check_in`, `servicios_adicionales` u `otro`; cualquier otra responde 400 con el mensaje "La categoría de la consulta no es válida". Una consulta no modifica la venta (RN-81).
+- [x] La descripción es obligatoria; si llega vacía, responde 400 con el mensaje "La descripción es obligatoria".
+- [x] La consulta se crea en estado `abierta`, sin fecha de vencimiento (RN-85), y queda disponible para que el asesor la responda con HU-019.
+- [x] El endpoint exige el token de acceso en el encabezado `Authorization: Bearer`. Sin token o con un token alterado responde 401 con "Token de acceso inválido o ausente"; con el token vencido responde 401 con "La sesión expiró. Inicie sesión nuevamente".
+- [x] El cliente solo registra consultas sobre sus propias órdenes; si la orden pertenece a otro cliente, o la cuenta no tiene rol cliente, responde 403 con el mensaje "No tiene permisos para realizar esta acción".
+- [x] Los errores de formato del JSON (campos faltantes o tipos inválidos) se responden con código 400 y la estructura success, data y message; por ejemplo, "El identificador de la orden es obligatorio", "La categoría es obligatoria" o "El campo 'descripcion' debe ser un texto".
 
 
 ### 2. 📆 Estructura de la información
 
-- [ ] Se responde con la siguiente estructura en JSON:
+- [x] Se responde con la siguiente estructura en JSON (consulta nueva de la orden VEN-00010; CON-00023 es el primer identificador libre después de las consultas precargadas CON-00019, CON-00021 y CON-00022, y fechaRegistro corresponde a la fecha y hora en que se registra la consulta):
 
 ```json
 {
-  "message": "Consulta registrada exitosamente",
+  "success": true,
   "data": {
-    "consultaId": "CON-00021",
+    "consultaId": "CON-00023",
     "ventaId": "VEN-00010",
     "categoria": "equipaje",
-    "descripcion": "¿Cuántas maletas puedo llevar en el vuelo?",
+    "descripcion": "¿Puedo llevar una maleta adicional de 23 kg en el vuelo de regreso?",
     "estado": "abierta",
-    "fechaRegistro": "2026-11-06T08:45:00-05:00"
+    "fechaRegistro": "2026-11-11T10:50:00-05:00"
   },
-  "success": true
+  "message": "Consulta registrada exitosamente"
 }
 ```
 
-- [ ] Si la orden no existe, el backend retorna:
+- [x] Si la orden no existe, el backend retorna:
 
 ```json
 {
-  "message": "La orden de venta no existe",
+  "success": false,
   "data": null,
-  "success": false
+  "message": "La orden de venta no existe"
 }
 ```
 
@@ -73,27 +74,27 @@ Que el sistema me permita registrar una consulta vinculada a mi orden.
 
 ```json
 {
-  "message": "Consulta registrada exitosamente",
+  "success": true,
   "data": {
-    "consultaId": "CON-00021",
+    "consultaId": "CON-00023",
     "ventaId": "VEN-00010",
     "categoria": "equipaje",
-    "descripcion": "¿Cuántas maletas puedo llevar en el vuelo?",
+    "descripcion": "¿Puedo llevar una maleta adicional de 23 kg en el vuelo de regreso?",
     "estado": "abierta",
-    "fechaRegistro": "2026-11-06T08:45:00-05:00"
+    "fechaRegistro": "2026-11-11T10:50:00-05:00"
   },
-  "success": true
+  "message": "Consulta registrada exitosamente"
 }
 
 ````
 
-- [ ] Si la orden no existe, el backend retorna:
+- [x] Si la categoría no está permitida (por ejemplo "cambio_fecha"), el backend retorna:
 
 ```json
 {
-  "message": "La orden de venta no existe",
+  "success": false,
   "data": null,
-  "success": false
+  "message": "La categoría de la consulta no es válida"
 }
 ```
 
@@ -103,13 +104,13 @@ Que el sistema me permita registrar una consulta vinculada a mi orden.
 
 ### ✅ Caso 1: 
 
-- **Precondición:** La orden VEN-00010 existe.
-- **Acción:** Ejecutar el endpoint POST /api/v1/posventa/consultas con categoría equipaje y una descripción.
+- **Precondición:** La cliente CLI-00188 (registrada con HU-001) inició sesión con HU-002 y su orden precargada VEN-00010 existe.
+- **Acción:** Ejecutar el endpoint POST /api/v1/posventa/consultas con su token, ventaId VEN-00010, categoría equipaje y una descripción.
 - **Resultado esperado:**
 
   - Código HTTP 201 Created
   - Campo success = true
-  - Campo data.estado = "abierta"
+  - Campo data.consultaId = "CON-00023" y data.estado = "abierta"
   - Campo message contiene el texto: "Consulta registrada exitosamente"
 
 ### ✅ Caso 2:
@@ -128,14 +129,15 @@ Que el sistema me permita registrar una consulta vinculada a mi orden.
 - **Precondición:** Ejecución exitosa del endpoint.
 - **Resultado esperado:** La respuesta JSON debe contener exactamente los campos:
 
-  - "consultaId" (texto)
-  - "ventaId" (texto)
-  - "categoria" (texto)
-  - "descripcion" (texto)
-  - "estado" (texto)
-  - "fechaRegistro" (fecha ISO 8601)
-  - "message" (texto)
   - "success" (booleano)
+  - "data" (objeto), con los campos:
+    - "consultaId" (texto)
+    - "ventaId" (texto)
+    - "categoria" (texto)
+    - "descripcion" (texto)
+    - "estado" (texto)
+    - "fechaRegistro" (fecha ISO 8601)
+  - "message" (texto)
 
 ### ❌ Caso 4: 
 
@@ -163,20 +165,20 @@ Que el sistema me permita registrar una consulta vinculada a mi orden.
 
 ## 📦 Alcance Funcional
 
-- [ ] El endpoint registra la consulta posventa vinculada a la orden.
-- [ ] Las categorías que implican cambios de la venta se rechazan.
-- [ ] La respuesta JSON cumple con el contrato definido.
+- [x] El endpoint registra la consulta posventa vinculada a la orden.
+- [x] Las categorías que implican cambios de la venta se rechazan.
+- [x] La respuesta JSON cumple con el contrato definido.
 
 ## 🧪 Pruebas Completadas
 
-- [ ] Se ejecutaron pruebas unitarias para validar la vinculación con la orden y la categoría.
-- [ ] Se cubrieron los casos de error y de excepción.
-- [ ] Las pruebas funcionales están documentadas y pasadas.
+- [x] Se ejecutaron pruebas funcionales en Swagger para validar la vinculación con la orden y la categoría.
+- [x] Se cubrieron los casos de error y de excepción.
+- [x] Las pruebas funcionales están documentadas y pasadas.
 
 ## 📄 Documentación Técnica
 
-- [ ] Endpoint documentado en Swagger / OpenAPI.
-- [ ] Se describe:
+- [x] Endpoint documentado en Swagger / OpenAPI.
+- [x] Se describe:
 
   - Propósito del endpoint
   - Campos de entrada y salida
@@ -185,5 +187,5 @@ Que el sistema me permita registrar una consulta vinculada a mi orden.
 
 ## 🔐 Manejo de Errores
 
-- [ ] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
-- [ ] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.
+- [x] Se devuelve código HTTP 500 cuando falla el acceso al repositorio de datos.
+- [x] El campo `message` en el JSON incluye un texto amigable y claro para el usuario técnico o frontend.
