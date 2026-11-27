@@ -1,16 +1,18 @@
 """Dominio de pagos: esquema del pago en línea y reglas de su procesamiento."""
+import hmac
 from hashlib import sha256
 from typing import Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict
 
 from domain.cotizacion import Cotizacion
-from domain.errores import ConflictoError, ErrorNegocio
+from domain.errores import ConflictoError, ErrorNegocio, FirmaInvalidaError
 
 MEDIOS_PAGO = ("pse", "tarjeta_credito", "tarjeta_debito")
 PREFIJO_TOKEN_TARJETA = "tok_"
 PREFIJO_BANCO_PSE = "banco_"
 URL_PAGO_PSE = "https://pasarela.simulada/pse/"
+ESTADOS_NOTIFICACION = ("aprobado", "rechazado")
 
 
 class PagoCreate(BaseModel):
@@ -28,6 +30,22 @@ class PagoCreate(BaseModel):
         "medioPago": "tarjeta_credito",
         "datosPago": "tok_aprobado",
         "claveIdempotencia": "pago-ven-00012-abono-1",
+    }})
+
+
+class NotificacionPagoCreate(BaseModel):
+    """Notificación (webhook) que envía la pasarela cuando el banco resuelve una transacción PSE."""
+
+    transaccionId: Optional[str] = None
+    estado: Optional[str] = None
+    monto: Optional[int] = None
+    firma: Optional[str] = None
+
+    model_config = ConfigDict(json_schema_extra={"example": {
+        "transaccionId": "TRX-5580003",
+        "estado": "aprobado",
+        "monto": 3081600,
+        "firma": "3668aafc2d5651e7c08112dbc15ee40f049f718c2d716bd236fe711e4129780f",
     }})
 
 
@@ -62,6 +80,48 @@ class Pago:
                                "no envíe el número de la tarjeta")
         if _vacio(datos.claveIdempotencia):
             raise ErrorNegocio("La clave de idempotencia es obligatoria")
+
+    @staticmethod
+    def firma_notificacion(clave: str, transaccion_id: str, estado: str, monto: int) -> str:
+        """Firma HMAC-SHA256 en hexadecimal de la cadena "transaccionId|estado|monto"."""
+        mensaje = f"{transaccion_id}|{estado}|{monto}".encode("utf-8")
+        return hmac.new(clave.encode("utf-8"), mensaje, sha256).hexdigest()
+
+    @staticmethod
+    def validar_notificacion(datos: "NotificacionPagoCreate", clave: str) -> None:
+        """Valida los campos y la firma de la notificación enviada por la pasarela."""
+        if _vacio(datos.transaccionId):
+            raise ErrorNegocio("El identificador de la transacción es obligatorio")
+        if _vacio(datos.estado):
+            raise ErrorNegocio("El estado es obligatorio")
+        if datos.monto is None:
+            raise ErrorNegocio("El monto es obligatorio")
+        if _vacio(datos.firma):
+            raise FirmaInvalidaError("La firma de la notificación es obligatoria")
+        esperada = Pago.firma_notificacion(clave, datos.transaccionId, datos.estado, datos.monto)
+        if not hmac.compare_digest(esperada, datos.firma.strip().lower()):
+            raise FirmaInvalidaError("La firma de la notificación no es válida")
+        if datos.estado.strip().lower() not in ESTADOS_NOTIFICACION:
+            raise ErrorNegocio("El estado debe ser aprobado o rechazado")
+
+    @staticmethod
+    def validar_monto_notificado(pago: dict, monto: int) -> None:
+        """El monto notificado debe coincidir con el de la transacción registrada."""
+        if pago["monto"] != monto:
+            raise ErrorNegocio("El monto no coincide con la transacción")
+
+    @staticmethod
+    def presentar_notificacion(pago: dict, venta: dict, reserva: Optional[dict], factura: Optional[dict]) -> dict:
+        """Resultado de la notificación: el pago y el estado de su orden."""
+        return {
+            "pagoId": pago["pagoId"],
+            "transaccionId": pago["transaccionId"],
+            "estadoPago": pago["estado"],
+            "saldoPendiente": venta["saldoPendiente"],
+            "estadoOrden": venta["estado"],
+            "reservaConfirmada": reserva is not None and reserva["estado"] == "confirmada",
+            "facturaGenerada": factura is not None,
+        }
 
     @staticmethod
     def es_mismo_intento(pago: dict, venta_id: str, monto: int, medio: str) -> bool:

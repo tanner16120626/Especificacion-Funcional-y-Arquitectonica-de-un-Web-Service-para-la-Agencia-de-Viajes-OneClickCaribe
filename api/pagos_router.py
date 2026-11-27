@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from api.dependencias import requiere_rol
 from api.respuesta import respuesta, respuesta_error
 from domain.errores import ErrorNegocio
-from domain.pago import PagoCreate
+from domain.pago import NotificacionPagoCreate, PagoCreate
 from repository.cliente_repository import cliente_repository
 from repository.cotizacion_repository import cotizacion_repository
 from repository.factura_repository import factura_repository
@@ -13,8 +13,9 @@ from repository.pago_repository import pago_repository
 from repository.reserva_repository import reserva_repository
 from repository.tarifa_repository import tarifa_repository
 from repository.venta_repository import venta_repository
-from service.pago_service import AutomatizarOrdenPagadaService, ProcesarPagoService
-from service.pasarela_service import pasarela_pagos
+from service.pago_service import (AplicarPagoAprobadoService, AutomatizarOrdenPagadaService,
+                                  ProcesarNotificacionPagoService, ProcesarPagoService)
+from service.pasarela_service import clave_notificaciones, pasarela_pagos
 
 router = APIRouter(prefix="/api/v1", tags=["Pagos"])
 
@@ -25,11 +26,20 @@ MENSAJES_PAGO = {
 }
 
 
-def obtener_procesar_pago_service() -> ProcesarPagoService:
+def _aplicar_pago_aprobado_service() -> AplicarPagoAprobadoService:
     automatizacion = AutomatizarOrdenPagadaService(liquidacion_repository, reserva_repository, factura_repository,
                                                    cotizacion_repository, tarifa_repository, cliente_repository)
+    return AplicarPagoAprobadoService(venta_repository, automatizacion)
+
+
+def obtener_procesar_pago_service() -> ProcesarPagoService:
     return ProcesarPagoService(venta_repository, pago_repository, reserva_repository, factura_repository,
-                               pasarela_pagos, automatizacion)
+                               pasarela_pagos, _aplicar_pago_aprobado_service())
+
+
+def obtener_procesar_notificacion_pago_service() -> ProcesarNotificacionPagoService:
+    return ProcesarNotificacionPagoService(venta_repository, pago_repository, reserva_repository, factura_repository,
+                                           _aplicar_pago_aprobado_service(), clave_notificaciones())
 
 
 def _ejemplo(descripcion: str, contenido: dict) -> dict:
@@ -97,3 +107,48 @@ def pagar_mi_compra_en_linea(
         return respuesta_error(error.mensaje, error.status_code, error.data)
     except Exception:
         return respuesta_error("No fue posible procesar el pago", 500)
+
+
+_NOTIFICACION_APROBADA = {
+    "pagoId": "PAG-00022", "transaccionId": "TRX-5580003", "estadoPago": "aprobado", "saldoPendiente": 0,
+    "estadoOrden": "pagada", "reservaConfirmada": True, "facturaGenerada": True}
+
+
+@router.post(
+    "/pagos/notificaciones",
+    status_code=200,
+    summary="HU-014 Confirmar automáticamente mi pago por PSE",
+    description="Webhook que invoca la pasarela de pagos cuando el banco resuelve una transacción PSE pendiente. "
+                "No usa el token del cliente: se autentica con la firma de la notificación. La firma es HMAC-SHA256 "
+                "en hexadecimal de la cadena \"transaccionId|estado|monto\" (por ejemplo "
+                "\"TRX-5580003|aprobado|3081600\"), con la clave compartida PASARELA_CLAVE_NOTIFICACIONES del .env "
+                "o, si no está definida, con la clave de prueba \"clave-pasarela-simulada-2026\". El estado es "
+                "aprobado o rechazado y el monto debe coincidir con el del pago registrado. Si el pago ya no está "
+                "pendiente, la notificación no se aplica de nuevo. Con aprobado se recalcula el saldo (RN-45) y, si "
+                "llega a cero, la orden queda pagada, se liquida a los proveedores (RN-48, RN-49), se confirma la "
+                "reserva (RN-61, RN-62) y se genera la factura (RN-53, RN-57). Con rechazado el saldo no cambia y "
+                "queda libre para otro pago.",
+    responses={
+        200: _ejemplo("Notificación procesada. Si el pago ya no estaba pendiente, el message es \"La notificación "
+                      "ya fue procesada\" y data muestra el pago tal como quedó",
+                      {"success": True, "data": _NOTIFICACION_APROBADA, "message": "Notificación procesada exitosamente"}),
+        400: _ejemplo("Datos inválidos, estado distinto de aprobado o rechazado, o monto distinto al registrado",
+                      {"success": False, "data": None, "message": "El monto no coincide con la transacción"}),
+        401: _ejemplo("Firma inválida. Sin firma, el message es \"La firma de la notificación es obligatoria\"",
+                      {"success": False, "data": None, "message": "La firma de la notificación no es válida"}),
+        404: _ejemplo("Transacción no encontrada", {"success": False, "data": None, "message": "La transacción no existe"}),
+        500: _ejemplo("Error del repositorio", {"success": False, "data": None, "message": "No fue posible procesar la notificación"}),
+    },
+)
+def confirmar_automaticamente_mi_pago_por_pse(
+    datos: NotificacionPagoCreate,
+    servicio: ProcesarNotificacionPagoService = Depends(obtener_procesar_notificacion_pago_service),
+):
+    try:
+        aplicada, resultado = servicio.procesar(datos)
+        mensaje = "Notificación procesada exitosamente" if aplicada else "La notificación ya fue procesada"
+        return respuesta(data=resultado, message=mensaje)
+    except ErrorNegocio as error:
+        return respuesta_error(error.mensaje, error.status_code, error.data)
+    except Exception:
+        return respuesta_error("No fue posible procesar la notificación", 500)
