@@ -1,9 +1,9 @@
-"""Servicio de pagos: procesa el pago en línea y automatiza la orden pagada."""
+"""Servicio de pagos: procesa el pago en línea, las notificaciones de la pasarela y automatiza la orden pagada."""
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
 
 from domain.errores import ConflictoError, NoEncontradoError, PagoRechazadoError, PermisoDenegadoError
-from domain.pago import Pago, PagoCreate
+from domain.pago import NotificacionPagoCreate, Pago, PagoCreate
 from repository.cliente_repository import ClienteRepository
 from repository.cotizacion_repository import CotizacionRepository
 from repository.factura_repository import FacturaRepository
@@ -65,18 +65,34 @@ class AutomatizarOrdenPagadaService:
         })
 
 
+class AplicarPagoAprobadoService:
+    """Aplica un pago aprobado a su orden; lo usan el pago en línea (HU-013) y la notificación PSE (HU-014)."""
+
+    def __init__(self, ventas: VentaRepository, automatizacion: AutomatizarOrdenPagadaService):
+        self._ventas = ventas
+        self._automatizacion = automatizacion
+
+    def aplicar(self, venta: dict, monto: int, fecha: str) -> dict:
+        """RN-45: recalcula el saldo; si llega a cero, la orden queda pagada y se ejecuta la automatización."""
+        total_aprobado, saldo, estado_orden = Pago.aplicar_aprobado(venta, monto)
+        venta = self._ventas.actualizar_pago(venta["ventaId"], total_aprobado, saldo, estado_orden)
+        if estado_orden == "pagada":
+            self._automatizacion.ejecutar(venta, fecha)
+        return venta
+
+
 class ProcesarPagoService:
     """Caso de uso del pago en línea de una orden de venta."""
 
     def __init__(self, ventas: VentaRepository, pagos: PagoRepository, reservas: ReservaRepository,
                  facturas: FacturaRepository, pasarela: PasarelaPagosSimulada,
-                 automatizacion: AutomatizarOrdenPagadaService):
+                 aprobacion: AplicarPagoAprobadoService):
         self._ventas = ventas
         self._pagos = pagos
         self._reservas = reservas
         self._facturas = facturas
         self._pasarela = pasarela
-        self._automatizacion = automatizacion
+        self._aprobacion = aprobacion
 
     def _presentar(self, pago: dict) -> dict:
         venta = self._ventas.buscar_por_id(pago["ventaId"])
@@ -118,8 +134,39 @@ class ProcesarPagoService:
         if estado == "rechazado":
             raise PagoRechazadoError("La transacción fue rechazada por la entidad financiera", self._presentar(pago))
         if estado == "aprobado":
-            total_aprobado, saldo, estado_orden = Pago.aplicar_aprobado(venta, datos.monto)
-            venta = self._ventas.actualizar_pago(venta_id, total_aprobado, saldo, estado_orden)
-            if estado_orden == "pagada":
-                self._automatizacion.ejecutar(venta, fecha)
+            self._aprobacion.aplicar(venta, datos.monto, fecha)
         return estado, self._presentar(pago)
+
+
+class ProcesarNotificacionPagoService:
+    """Caso de uso de la notificación (webhook) con que la pasarela confirma un pago PSE."""
+
+    def __init__(self, ventas: VentaRepository, pagos: PagoRepository, reservas: ReservaRepository,
+                 facturas: FacturaRepository, aprobacion: AplicarPagoAprobadoService, clave: str):
+        self._ventas = ventas
+        self._pagos = pagos
+        self._reservas = reservas
+        self._facturas = facturas
+        self._aprobacion = aprobacion
+        self._clave = clave
+
+    def _presentar(self, pago: dict) -> dict:
+        venta = self._ventas.buscar_por_id(pago["ventaId"])
+        return Pago.presentar_notificacion(pago, venta, self._reservas.buscar_por_venta(venta["ventaId"]),
+                                           self._facturas.buscar_por_venta(venta["ventaId"]))
+
+    def procesar(self, datos: NotificacionPagoCreate) -> Tuple[bool, dict]:
+        """HU-014: devuelve si la notificación se aplicó ahora (False si ya estaba procesada) y el resultado."""
+        Pago.validar_notificacion(datos, self._clave)
+        pago = self._pagos.buscar_por_transaccion(datos.transaccionId.strip())
+        if pago is None:
+            raise NoEncontradoError("La transacción no existe")
+        Pago.validar_monto_notificado(pago, datos.monto)
+        if pago["estado"] != "pendiente":
+            return False, self._presentar(pago)
+        estado = datos.estado.strip().lower()
+        pago = self._pagos.actualizar_estado(pago["pagoId"], estado)
+        if estado == "aprobado":
+            fecha = datetime.now(ZONA_COLOMBIA).replace(microsecond=0).isoformat()
+            self._aprobacion.aplicar(self._ventas.buscar_por_id(pago["ventaId"]), pago["monto"], fecha)
+        return True, self._presentar(pago)
