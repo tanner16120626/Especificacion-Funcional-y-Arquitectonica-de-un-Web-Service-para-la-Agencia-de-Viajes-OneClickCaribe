@@ -22,6 +22,23 @@ class ConsultaCreate(BaseModel):
     }})
 
 
+class RespuestaConsultaUpdate(BaseModel):
+    """Respuesta del asesor a una consulta posventa; con cerrar = true la consulta queda cerrada."""
+
+    respuesta: Optional[str] = None
+    asesor: Optional[str] = None
+    cerrar: Optional[bool] = None
+
+    model_config = ConfigDict(json_schema_extra={"example": {
+        "respuesta": "Su tarifa incluye una maleta de 23 kg y un equipaje de mano.",
+        "asesor": "Tanner Cedeño",
+        "cerrar": True,
+    }})
+
+
+ESTADOS_RESPONDIBLES = ("abierta", "en_atencion")
+
+
 def _vacio(valor: Optional[str]) -> bool:
     return valor is None or not str(valor).strip()
 
@@ -55,6 +72,43 @@ class Consulta:
             "asesor": None,
             "fechaRegistro": fecha,
             "fechaRespuesta": None,
+        }
+
+    @staticmethod
+    def validar_respuesta(datos: RespuestaConsultaUpdate) -> None:
+        """La respuesta y el asesor son obligatorios; cerrar indica si la consulta queda resuelta."""
+        if _vacio(datos.respuesta):
+            raise ErrorNegocio("La respuesta es obligatoria")
+        if _vacio(datos.asesor):
+            raise ErrorNegocio("El asesor es obligatorio")
+        if datos.cerrar is None:
+            raise ErrorNegocio("El indicador cerrar es obligatorio")
+
+    @staticmethod
+    def validar_respondible(consulta: dict) -> None:
+        """Solo se responde una consulta abierta o en atención."""
+        if consulta["estado"] not in ESTADOS_RESPONDIBLES:
+            raise ErrorNegocio("La consulta ya está cerrada")
+
+    @staticmethod
+    def respuesta(datos: RespuestaConsultaUpdate, fecha: str) -> dict:
+        """Cambios de la consulta: con cerrar queda cerrada; si no, en atención. No modifica la venta (RN-81)."""
+        return {
+            "estado": "cerrada" if datos.cerrar else "en_atencion",
+            "respuesta": datos.respuesta.strip(),
+            "asesor": datos.asesor.strip(),
+            "fechaRespuesta": fecha,
+        }
+
+    @staticmethod
+    def presentar_respuesta(consulta: dict) -> dict:
+        """Consulta respondida que devuelve la API."""
+        return {
+            "consultaId": consulta["consultaId"],
+            "estado": consulta["estado"],
+            "respuesta": consulta["respuesta"],
+            "asesor": consulta["asesor"],
+            "fechaRespuesta": consulta["fechaRespuesta"],
         }
 
     @staticmethod

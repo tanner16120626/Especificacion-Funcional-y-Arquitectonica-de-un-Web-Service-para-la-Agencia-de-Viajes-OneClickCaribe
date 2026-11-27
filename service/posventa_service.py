@@ -1,7 +1,7 @@
 """Servicio de posventa: registra las consultas de los clientes sobre sus órdenes."""
 from datetime import datetime, timedelta, timezone
 
-from domain.consulta import Consulta, ConsultaCreate
+from domain.consulta import Consulta, ConsultaCreate, RespuestaConsultaUpdate
 from domain.errores import NoEncontradoError, PermisoDenegadoError
 from repository.consulta_repository import ConsultaRepository
 from repository.venta_repository import VentaRepository
@@ -27,3 +27,20 @@ class RegistrarConsultaService:
         fecha = datetime.now(ZONA_COLOMBIA).replace(microsecond=0).isoformat()
         consulta = Consulta.nueva(self._consultas.siguiente_consulta_id(), datos, fecha)
         return Consulta.presentar(self._consultas.guardar(consulta))
+
+
+class ResponderConsultaService:
+    """Caso de uso de la respuesta del asesor a una consulta posventa."""
+
+    def __init__(self, consultas: ConsultaRepository):
+        self._consultas = consultas
+
+    def responder(self, consulta_id: str, datos: RespuestaConsultaUpdate) -> dict:
+        """HU-019: registra la respuesta y cierra la consulta si se indica; no modifica la venta (RN-81)."""
+        Consulta.validar_respuesta(datos)
+        consulta = self._consultas.buscar_por_id(consulta_id)
+        if consulta is None:
+            raise NoEncontradoError("La consulta no existe")
+        Consulta.validar_respondible(consulta)
+        fecha = datetime.now(ZONA_COLOMBIA).replace(microsecond=0).isoformat()
+        return Consulta.presentar_respuesta(self._consultas.actualizar(consulta_id, Consulta.respuesta(datos, fecha)))
